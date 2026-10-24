@@ -923,7 +923,7 @@ function newGameDialog() {
   w.querySelector("#bx").onclick = () => { sfx("click"); winClose(); };
   w.querySelector("#bg").onclick = () => { const nm = (w.querySelector("#nm").value || "").replace(/[<>&"]/g, "").trim() || "Held"; sfx("click"); SV = defaultSave(); SV.name = nm; SV.paper = paper; if (window.starterGear) starterGear(); saveGame(); winClose(); startGame(true); };
 }
-function startGame(isNew) { SV.sets = SV.sets || { sfx: .8, mus: .6 }; if (SCENES.hub) transition(() => { setScene("hub", { isNew }); }); else startDungeon(0, 0, !isNew && SV.run && SV.run.did === 0); }
+function startGame(isNew) { SV.sets = SV.sets || { sfx: .8, mus: .6 }; if (isNew && !SV.flags.introSeen) transition(() => { setScene("hub", { isNew, silent: true }); cutPlay("intro", () => { SV.flags.introSeen = 1; saveGame(); SCENES.hub.firstTalk(); }); }); else transition(() => { setScene("hub", { isNew }); }); }
 function codeDialog() {
   const w = winOpen(`<h2>Code laden</h2><div class="body"><div class="dim">Füge hier deinen Exportcode ein:</div><textarea class="code" id="cd"></textarea></div><div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn" id="bx">Zurück</button><button class="btn big" id="bg">Laden</button></div>`);
   w.style.width = "min(94vw,560px)"; w.querySelector("#bx").onclick = () => { sfx("click"); winClose(); };
@@ -931,7 +931,9 @@ function codeDialog() {
 }
 /* ----- Start ----- */
 function exportCode() { return "PH0:" + btoa(unescape(encodeURIComponent(JSON.stringify(SV)))); }
-async function importCode(s) { try { s = (s || "").trim(); if (!s.startsWith("PH0:")) return false; const o = JSON.parse(decodeURIComponent(escape(atob(s.slice(4))))); if (!o || o.v !== 1) return false; SV = Object.assign(defaultSave(), o); saveGame(); return true; } catch (e) { return false; } }
+async function exportCodeZ() { try { if (!window.CompressionStream) return exportCode(); const cs = new CompressionStream("gzip"), w = cs.writable.getWriter(); w.write(new TextEncoder().encode(JSON.stringify(SV))); w.close(); const buf = new Uint8Array(await new Response(cs.readable).arrayBuffer()); let b = ""; buf.forEach(x => b += String.fromCharCode(x)); return "PH1:" + btoa(b); } catch (e) { return exportCode(); } }
+async function importCodeZ(s) { const b = atob(s.slice(4)), u = Uint8Array.from(b, ch => ch.charCodeAt(0)), ds = new DecompressionStream("gzip"), w = ds.writable.getWriter(); w.write(u); w.close(); return new TextDecoder().decode(await new Response(ds.readable).arrayBuffer()); }
+async function importCode(s) { try { s = (s || "").trim(); let o; if (s.startsWith("PH1:")) o = JSON.parse(await importCodeZ(s)); else if (s.startsWith("PH0:")) o = JSON.parse(decodeURIComponent(escape(atob(s.slice(4))))); else return false; if (!o || o.v !== 1) return false; SV = Object.assign(defaultSave(), o); saveGame(); return true; } catch (e) { return false; } }
 async function boot() {
   resize(); try { await Promise.all([document.fonts.load("40px 'Caveat Brush'"), document.fonts.load("20px 'Patrick Hand'")]); } catch (e) {}
   if (hasSave()) loadGame(); layoutControls(); setScene("title"); requestAnimationFrame(frame);
@@ -945,10 +947,14 @@ function adminBuild() {
   a.innerHTML = `<div class="row"><h2 style="margin:0;font:400 28px var(--f-display);color:var(--accent)">Admin</h2><span style="flex:1"></span><button class="btn" data-a="close">Schließen</button></div>
   <h3>Allgemein</h3>${B("Unverwundbar " + (ADM.invul ? "AN" : "aus"), "invul")}${B("FPS " + (G.showFps ? "AN" : "aus"), "fps")}${B("Volle Heilung", "heal")}${B("Titelbild", "title")}${B("Übungsraum", "arena")}${B("Spielstand löschen", "wipe")}
   <h3>Beute und Stufen</h3>${B("Stufe +5", "lv5")}${B("+1000 Taler", "gold")}${B("+10 Punkte", "vp")}${B("Zufallsbeute x5", "loot")}${B("Legendär", "leg")}${B("Einzigartig", "uni")}${B("Dungeon-Stufe + " + (SV.stufe || 0), "st+")}${B("Dungeon-Stufe -", "st-")}${B("Rucksack/Schmiede", "inv")}${B("Schmiede", "smith")}
-  <h3>Dungeons</h3>${DUNGEONS.map(d => B(d.id + ": " + d.n, "dg" + d.id)).join("")}${B("Letzten Lauf fortsetzen", "dgres")}`;
+  <h3>Dungeons</h3>${DUNGEONS.map(d => B(d.id + ": " + d.n, "dg" + d.id)).join("")}${B("Letzten Lauf fortsetzen", "dgres")}
+  <h3>Bosse direkt starten</h3>${[1, 3, 6, 7].map(i => B(BOSS[BOSS_BY_DUNGEON[i]].n, "bs" + i)).join("")}
+  <h3>Szenen abspielen</h3>${Object.keys(SCENE_DEFS).map(k => B(k, "sc_" + k)).join("")}${B("Abspann", "sc_credits")}${B("Ende wählen", "sc_end")}`;
   a.onclick = e => { const b = e.target.closest("[data-a]"); if (!b) return; adminAct(b.dataset.a); };
 }
 function adminAct(id) {
+  if (id.startsWith("sc_")) { adminToggle(); const k = id.slice(3); if (k === "credits") creditsPlay(() => { }); else if (k === "end") endingFlow(); else cutPlay(k, () => { }); return; }
+  if (id.startsWith("bs")) { adminToggle(); DG.jumpBoss = true; startDungeon(+id.slice(2), SV.stufe || 0, false); return; }
   if (id.startsWith("dg") && id !== "dgres") { adminToggle(); startDungeon(+id.slice(2), SV.stufe || 0, false); return; }
   switch (id) {
     case "close": adminToggle(); return;
@@ -1775,6 +1781,7 @@ SCENES.dungeon = {
   enter(arg) {
     const def = DG.def; calcStats(); music(def.area === 1 ? "bereich2" : "bereich1"); scrapsInit(20, V.W, V.H); IN.show = true; DG.state = "idle";
     if (SV.run && SV.run.did === def.id && SV.run.hp && !(arg && arg.fresh)) PL.hp = Math.min(PL.max, Math.max(PL.hp, SV.run.hp)); else PL.hp = PL.max;
+    if (DG.jumpBoss) { DG.jumpBoss = false; const bi = DG.nodes.findIndex(n => n.type === "boss"); if (bi >= 0) { DG.cur = bi; DG.fromSide = Object.keys(DG.nodes[bi].door)[0]; DG.nodes.forEach(n => n.visited = true); } }
     this.load(DG.cur, DG.fromSide, true); BT.onDeath = () => { SV.stats.deaths++; toast("Zerknüllt! Du beginnst den Raum neu. Fortschritt bleibt."); transition(() => { const nd = DG.nodes[DG.cur]; nd.cleared = nd.cleared; DG.fromSide = DG.entrySide; this.load(DG.cur, DG.entrySide, false); PL.hp = PL.max; PL.dead = false; }, { d1: .5, d2: .5 }); };
     if (arg && arg.fresh) titleCard(def.ch, def.n, 3000);
   },
@@ -1786,7 +1793,7 @@ SCENES.dungeon = {
     plReset(sp.x, sp.y); plUnstuck(room); const hp = PL.hp; PL.hp = hp || PL.max; btReset(room, K, def.area); BT.active = true; BT.cdArt = BT.cdArt && BT.cdArt.length ? BT.cdArt : [0, 0, 0]; this.mkProps(nd, room);
     CAM.x = PL.x; CAM.y = PL.y; CAM.z = 1.15; DG.portal = null; DG.wave = 0; DG.waves = 1; this.t = 0; DG.rt = 0;
     const fight = ["combat", "elite", "boss"].includes(nd.type) && !nd.cleared;
-    if (fight) { setDoors(room, false); DG.state = "intro"; DG.introT = 0; DG.waves = nd.type === "combat" ? 2 : 1; if (nd.type === "boss") { music("boss1"); } }
+    if (fight) { setDoors(room, false); DG.state = "intro"; DG.introT = 0; DG.waves = nd.type === "combat" ? 2 : 1; if (nd.type === "boss") { music((BOSS[def.boss] && BOSS[def.boss].music) || "boss1"); DG.bossSpawned = false; DG.plate = null; if (def.boss === "rotstift" && !SV.flags.rsIntro && !DG.rsPlayed) { DG.rsPlayed = true; DG.state = "cut"; setTimeout(() => cutPlay("rotstift_intro", () => { SV.flags.rsIntro = 1; DG.state = "intro"; DG.introT = 0; }), 500); } } }
     else { setDoors(room, true); DG.state = "free"; if (nd.cleared && ["combat", "elite", "boss"].includes(nd.type)) { } }
     if (nd.type === "exit" || (nd.type === "boss" && nd.cleared)) this.mkPortal(room);
     if (nd.solved) this.openCage(room, true);
@@ -1812,19 +1819,25 @@ SCENES.dungeon = {
   update(dt) {
     this.t += dt; DG.rt += dt; scrapsUpdate(dt); CAM.z = approach(CAM.z, 1, dt * .35); const nd = DG.nodes[DG.cur], room = DG.room;
     combatUpdate(dt); this.props(dt, nd, room); this.tutorial(dt, nd);
-    if (DG.state === "intro") { DG.introT += dt; if (DG.introT > .9) { DG.state = "fight"; this.spawnWave(); if (nd.type === "boss") { sfx("roar"); camShake(8); } } }
+    if (DG.state === "intro") {
+      DG.introT += dt; const boss = nd.type === "boss";
+      if (boss) { BT.freezeEn = true; BT.lockPl = true; CAM.z = approach(CAM.z, 1.3, dt * .8); if (!DG.bossSpawned && DG.introT > .4) { DG.bossSpawned = true; this.spawnWave(); if (BT.boss) { BT.boss.invul = true; sfx("roar"); camShake(9); } } if (DG.plate) DG.plate.t += dt; }
+      if (DG.introT > (boss ? 3.4 : .9)) { DG.state = "fight"; BT.freezeEn = false; BT.lockPl = false; if (boss) { if (BT.boss) BT.boss.invul = false; DG.plate = null; } else this.spawnWave(); }
+    }
     else if (DG.state === "fight") {
       const alive = BT.en.some(e => !e.dead);
-      if (!alive && !PL.dead) { if (DG.wave < DG.waves) { DG.waveT = (DG.waveT || 0) + dt; if (DG.waveT > 1.3) { DG.waveT = 0; this.spawnWave(); } } else this.cleared(nd, room); }
+      if (!alive && !PL.dead) { if (nd.type !== "boss" && DG.wave < DG.waves) { DG.waveT = (DG.waveT || 0) + dt; if (DG.waveT > 1.3) { DG.waveT = 0; this.spawnWave(); } } else this.cleared(nd, room); }
     }
-    if (DG.portal) { DG.portal.t += dt; if (!PL.dead && dist(PL.x, PL.y, DG.portal.x, DG.portal.y) < 22) this.finish(); }
+    if (DG.portal) { DG.portal.t += dt; if (!PL.dead && DG.state !== "cut" && dist(PL.x, PL.y, DG.portal.x, DG.portal.y) < 22) this.finish(); }
     this.doorCheck(nd, room); this.secret(nd, room);
-    if (PL.dead) { } const tg = PL.dead ? null : nearestEnemy(PL.x, PL.y, 140); camFollow(PL.x + (tg ? (tg.x - PL.x) * .15 : 0), PL.y + (tg ? (tg.y - PL.y) * .15 : 0), { w: room.w * TS, h: room.h * TS }, dt);
+    if (PL.dead) { } const introCam = DG.state === "intro" && nd.type === "boss"; const tg = PL.dead ? null : nearestEnemy(PL.x, PL.y, 140); if (introCam) camFollow(room.w * TS / 2, room.h * TS / 2, { w: room.w * TS, h: room.h * TS }, dt); else camFollow(PL.x + (tg ? (tg.x - PL.x) * .15 : 0), PL.y + (tg ? (tg.y - PL.y) * .15 : 0), { w: room.w * TS, h: room.h * TS }, dt);
     if (wasPressed("menu")) pauseMenu();
   },
   cleared(nd, room) {
     DG.state = "free"; nd.cleared = true; setDoors(room, true); sfx("door"); camShake(3); if (ST.heal) healPlayer(PL.max * ST.heal);
-    if (nd.type === "boss") { slowmo(1.2, .25); cineFlash("#fff", .6); this.mkPortal(room); music(DG.def.area === 1 ? "bereich2" : "bereich1"); const it = genItem(DG.K + 2, undefined, undefined, { luck: ST.luck + 60, minRar: 2 }); addPickup("item", room.w * TS / 2, room.h * TS / 2 + 40, { it }); }
+    if (nd.type === "boss") { DG.state = "cut"; const it = genItem(DG.K + 2, undefined, undefined, { luck: ST.luck + 60, minRar: 2 }); addPickup("item", room.w * TS / 2, room.h * TS / 2 + 40, { it }); addPickup("item", room.w * TS / 2 + 30, room.h * TS / 2 + 40, { it: genItem(DG.K + 2, undefined, undefined, { luck: ST.luck + 30, minRar: 1 }) });
+      const mem = { 1: "mem1", 3: "mem2", 6: "mem3" }[DG.def.id], after = () => { DG.state = "free"; music(DG.def.area === 1 ? "bereich2" : "bereich1"); if (DG.def.id === 7) endingFlow(); else this.mkPortal(room); };
+      setTimeout(() => { if (mem && !SV.flags[mem]) { SV.flags[mem] = 1; cutPlay(mem, after); } else after(); }, 3200); }
     else if (Math.random() < .3 || nd.type === "elite") { const p = { x: room.w * TS / 2, y: room.h * TS / 2 }; const c = addProp("chest", p.x, p.y); c.key = "r"; }
     dgSave();
   },
@@ -1871,7 +1884,7 @@ SCENES.dungeon = {
     camBegin(c); drawRoomBG(c, room); this.drawDoors(c, room); drawTorchSprites(c, room, G.t); this.drawProps(c); if (DG.portal) this.drawPortal(c); combatDraw(c); drawTorches(c, room, G.t); camEnd(c);
     const s = w2s(PL.x, PL.y), L = [{ x: s.x, y: s.y, r: 240 }]; room.torches.forEach(t => { const q = w2s(t.x, t.y + 14); L.push({ x: q.x, y: q.y, r: 120, k: .8 }); }); if (DG.portal) { const q = w2s(DG.portal.x, DG.portal.y); L.push({ x: q.x, y: q.y, r: 150, k: .9 }); }
     for (const sd in room.doors) { const d = room.doors[sd]; if (d.open) { const cc = d.cells[0], q = w2s((cc[0] + 1) * TS, (cc[1] + .5) * TS); L.push({ x: q.x, y: q.y, r: 90, k: .6 }); } }
-    drawLighting(c, th.dark * .9, L); scrapsDraw(c, CAM.x, CAM.y, .35, 1, 3); drawVignette(c, .8); hudDraw(c); this.drawMap(c); this.drawHint(c); drawControls(c, { btns: combatBtns() });
+    drawLighting(c, th.dark * .9, L); scrapsDraw(c, CAM.x, CAM.y, .35, 1, 3); drawVignette(c, .8); hudDraw(c); this.drawMap(c); this.drawHint(c); this.drawPlate(c); drawControls(c, { btns: combatBtns() });
   },
   drawDoors(c, room) { for (const sd in room.doors) { const d = room.doors[sd]; if (d.secret && !d.rev) continue; const [a, b] = d.cells, x = Math.min(a[0], b[0]) * TS, y = Math.min(a[1], b[1]) * TS, w = Math.abs(a[0] - b[0]) * TS + TS, h = Math.abs(a[1] - b[1]) * TS + TS; if (!d.open) { blit(c, doorSpr(w, h), x + w / 2, y + h / 2); } else { c.save(); c.globalAlpha = .5 + Math.sin(G.t * 3) * .1; c.fillStyle = "rgba(255,230,150,.45)"; c.fillRect(x, y, w, h); c.restore(); } } },
   drawProps(c) { for (const p of BT.props) { if (p.k === "spike") blit(c, spikeSpr(p.up ? 2 : p.warn ? 1 : 0), p.x, p.y); else if (p.k === "plate") blit(c, plateSpr(p.lit), p.x, p.y); else if (p.k === "crystal") blit(c, crystalSpr(p.lit), p.x, p.y - 4, { s: 1 + (p.lit ? Math.sin(G.t * 4) * .04 : 0) }); else if (p.k === "fountain") blit(c, fountSpr(p.used), p.x, p.y); else if (p.k === "turret") { c.save(); c.translate(p.x, p.y); c.rotate(p.a || 0); c.fillStyle = INK; c.beginPath(); c.arc(0, 0, 8, 0, TAU); c.fill(); c.fillStyle = BAD; c.fillRect(2, -3, 10, 6); c.restore(); } } },
@@ -1885,6 +1898,7 @@ SCENES.dungeon = {
       const g = { boss: "skull", elite: "skull", treasure: "chest", puzzle: "gear", shrine: "heart", exit: "page", secret: "star", trap: "cross" }[n.type]; if (g && n.visited) drawGlyph(c, g, x, y, 9, n.type === "boss" ? BAD : INK); });
     c.restore();
   },
+  drawPlate(c) { const p = DG.plate; if (!p || !p.t) return; const a = clamp(Math.min(p.t / .4, (3.2 - p.t) / .5), 0, 1); c.save(); c.globalAlpha = a; c.textAlign = "center"; c.lineWidth = 7; c.strokeStyle = INK; c.fillStyle = "#ffd45a"; c.font = "58px 'Caveat Brush'"; const y = V.H * .78; c.strokeText(p.n, V.W / 2, y); c.fillText(p.n, V.W / 2, y); c.font = "22px 'Patrick Hand'"; c.lineWidth = 4; c.fillStyle = P1; c.strokeText(p.sub, V.W / 2, y + 26); c.fillText(p.sub, V.W / 2, y + 26); c.restore(); },
   drawHint(c) { const h = DG.hint; if (!h) return; const a = clamp(Math.min(h.t * 3, 1), 0, 1); c.save(); c.globalAlpha = a; c.font = "20px 'Patrick Hand'"; c.textAlign = "center"; const lines = wrapText(c, h.txt, Math.min(V.W - 240, 520)); const y = V.H * .2; const w = Math.max(...lines.map(l => c.measureText(l).width)) + 28, hh = lines.length * 22 + 14; c.fillStyle = "rgba(29,39,66,.82)"; c.fillRect(V.W / 2 - w / 2, y - 20, w, hh); c.fillStyle = P1; lines.forEach((l, i) => c.fillText(l, V.W / 2, y + i * 22)); c.restore(); },
 };
 const r2 = (arr, n) => { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a.slice(0, n); };
@@ -1938,7 +1952,7 @@ SCENES.hub = {
     calcStats(); const th = THEMES[2]; this.room = buildRoom("hub", { theme: 2, seed: 4242, doors: {} }); const room = this.room;
     const sp = (arg && arg.fromDungeon) ? { x: 22 * TS, y: 7 * TS } : { x: 22 * TS, y: 14 * TS }; plReset(sp.x, sp.y); plUnstuck(room); PL.hp = PL.max; btReset(room, 1, 0); BT.active = false; ADM && 0;
     CAM.x = PL.x; CAM.y = PL.y; CAM.z = 1.2; IN.show = true; music("hub"); scrapsInit(26, V.W, V.H); this.t = 0; this.near = null; DG.def = null; saveGame();
-    if (arg && arg.isNew) setTimeout(() => this.firstTalk(), 700);
+    if (arg && arg.isNew && !arg.silent) setTimeout(() => this.firstTalk(), 700);
   },
   async firstTalk() { const n = HUB_NPC[2]; await say(n.n, INDEX_LINES[0]); SV.flags.met = 1; saveGame(); },
   update(dt) {
@@ -2022,8 +2036,8 @@ function openSettings() {
   w.querySelector("#x").onclick = () => { saveGame(); winClose(); }; w.querySelector("#s1").oninput = e => { s.sfx = +e.target.value; auVol("sfx", s.sfx); }; w.querySelector("#s2").oninput = e => { s.mus = +e.target.value; auVol("mus", s.mus); };
 }
 function openCodeOut() {
-  const w = winOpen(`<h2><span>Spielstand-Code</span><span class="sp"></span><button class="mini" id="x">${gi("cross", INK)}</button></h2><div class="body"><div class="dim">Kopiere diesen Text, um deinen Fortschritt woanders einzufügen.</div><textarea class="txtin" id="cd" rows="5" style="width:100%" readonly>${exportCode()}</textarea><button class="btn" id="cp" style="margin-top:6px">Kopieren</button></div>`); w.style.width = "min(90vw,520px)";
-  w.querySelector("#x").onclick = () => winClose(); w.querySelector("#cp").onclick = () => { try { navigator.clipboard.writeText(w.querySelector("#cd").value); toast("Kopiert"); } catch (e) { w.querySelector("#cd").select(); } };
+  const w = winOpen(`<h2><span>Spielstand-Code</span><span class="sp"></span><button class="mini" id="x">${gi("cross", INK)}</button></h2><div class="body"><div class="dim">Kopiere diesen Text, um deinen Fortschritt woanders einzufügen.</div><textarea class="txtin" id="cd" rows="5" style="width:100%" readonly>…</textarea><button class="btn" id="cp" style="margin-top:6px">Kopieren</button></div>`); w.style.width = "min(90vw,520px)";
+  exportCodeZ().then(z => { const t = w.querySelector("#cd"); if (t) t.value = z; }); w.querySelector("#x").onclick = () => winClose(); w.querySelector("#cp").onclick = () => { try { navigator.clipboard.writeText(w.querySelector("#cd").value); toast("Kopiert"); } catch (e) { w.querySelector("#cd").select(); } };
 }
 /* ===== Bosse: Werte, Zeichnungen, Phasen, neue Angriffsarten ===== */
 Object.assign(BOSS, {
@@ -2051,4 +2065,125 @@ function bossDie(e) {
 }
 /* Phasenwechsel: Brüllen, Schütteln, Zeitlupe */
 function bossPhase(e, ph) { e.phase = ph; e.invul = true; setTimeout(() => e.invul = false, 900); sfx("roar"); camShake(10); cineFlash("#b8473a", .45); fxRing(e.x, e.y, 8, 200, .7, "#b8473a"); fxText(e.x, e.y - e.r - 20, ph === 3 ? "Das Ende wird gestrichen!" : "Streichung!", "#ffd45a", 22); e.cdT = 1.2; if (e.tele) { e.tele.dead = true; e.tele = null; } e.st = "move"; slowmo(.5, .3); }
+/* ===== Zwischenszenen: Comic-Tafeln mit animierten Figuren, Schreibmaschine, Abspann ===== */
+const CUT = { def: null, i: 0, t: 0, typed: 0, cb: null, prev: null, prevName: "", tap: false, credits: false, mus: "", cache: {}, skipHold: 0 };
+const SCENE_DEFS = {
+  intro: { music: "story", panels: [
+    { bg: "desk", a: [{ k: "author", x: .5, y: .62, s: 1.5, an: "write" }, { k: "lamp", x: .2, y: .3, s: 1 }], t: "Es war einmal ein Mann, der schrieb eine Geschichte. Jeden Abend, bei einer Lampe, die nie ganz hell wurde." },
+    { bg: "desk", a: [{ k: "author", x: .42, y: .62, s: 1.4, an: "write" }, { k: "hand", x: .72, y: .66, s: 1.2, an: "write" }, { k: "lamp", x: .2, y: .3, s: 1 }], t: "Seine Tochter malte die Bilder dazu. Gemeinsam füllten sie Seite um Seite mit Helden, Tinte und Mut." },
+    { bg: "night", a: [{ k: "moon", x: .7, y: .3, s: 1.5, an: "pulse" }, { k: "star", x: .3, y: .2, s: 1, an: "fall" }], t: "Dann kam eine Nacht ohne Lampe. Und eine Hand, die nie wieder malte." },
+    { bg: "red", a: [{ k: "pencil", x: .5, y: .45, s: 1.2, an: "swipe" }], t: "Er nahm den Rotstift. Strich ein Kapitel. Dann noch eins. Bis nichts mehr stehen blieb." },
+    { bg: "white", a: [{ k: "page", x: .3, y: .6, s: 1.8, an: "drift" }], t: "Und die erste Fassung, die ehrliche, flog zerknüllt in die Ecke." },
+    { bg: "library", a: [{ k: "hero", x: .5, y: .66, s: 1.6, an: "bob" }], t: "…und wachte auf." },
+  ] },
+  mem1: { music: "story", panels: [
+    { bg: "desk", a: [{ k: "author", x: .4, y: .62, s: 1.4, an: "write" }, { k: "hand", x: .72, y: .66, s: 1.2, an: "write" }], t: "Du erinnerst dich: Er schrieb damals schnell. Sie lachte über jeden Satz, in dem ein Held stolperte." },
+    { bg: "desk", a: [{ k: "hand", x: .6, y: .62, s: 1.6, an: "write" }, { k: "heart", x: .6, y: .3, s: 1.2, an: "pulse" }], t: "„Lass ihn hinfallen“, sagte sie. „Dann steht er wieder auf.“" },
+    { bg: "white", a: [{ k: "hero", x: .5, y: .66, s: 1.6, an: "bob" }], t: "Der Golem löschte Randnotizen. Aber diese eine nicht." },
+  ] },
+  mem2: { music: "story", panels: [
+    { bg: "night", a: [{ k: "author", x: .5, y: .64, s: 1.5, an: "bob" }], t: "Nach jener Nacht las er alles noch einmal. Jedes Wort erinnerte ihn." },
+    { bg: "red", a: [{ k: "page", x: .5, y: .55, s: 1.8, an: "shake" }], t: "Er suchte Fehler, die nicht da waren. Der Lektor war nur seine Strenge, die zu laut geworden war." },
+    { bg: "red", a: [{ k: "pencil", x: .5, y: .5, s: 1.4, an: "pulse" }], t: "Und so erwachte der Rotstift." },
+  ] },
+  mem3: { music: "story", panels: [
+    { bg: "sea", a: [{ k: "ink", x: .3, y: .5, s: 1.4, an: "fall" }, { k: "ink", x: .6, y: .3, s: 1, an: "fall" }, { k: "moon", x: .8, y: .22, s: 1, an: "pulse" }], t: "Die Tinte im Meer ist keine Tinte. Es sind die Nächte, in denen er nicht schlafen konnte." },
+    { bg: "sea", a: [{ k: "hero", x: .5, y: .62, s: 1.6, an: "bob" }, { k: "page", x: .75, y: .5, s: 1.2, an: "drift" }], t: "Und doch steht in jeder Welle noch ein Wort." },
+  ] },
+  rotstift_intro: { music: "finalboss", panels: [
+    { bg: "red", a: [{ k: "pencil", x: .5, y: .5, s: 1.6, an: "pulse" }], t: "Der Rotstift: „Du bist die erste Fassung. Die ehrliche. Und ich bin der Grund, dass ihn niemand mehr liest.“" },
+    { bg: "red", a: [{ k: "pencil", x: .6, y: .45, s: 1.3, an: "swipe" }, { k: "hero", x: .25, y: .7, s: 1.4, an: "bob" }], t: "„Ein Ende ist ein Abschied. Lass mich dich streichen, kleine Seite.“" },
+    { bg: "red", a: [{ k: "hero", x: .5, y: .66, s: 1.8, an: "bob" }], t: "„Ich bin nicht gekommen, um gestrichen zu werden.“" },
+  ] },
+  endA: { music: "story", panels: [
+    { bg: "white", a: [{ k: "hero", x: .5, y: .66, s: 1.7, an: "bob" }, { k: "pencil", x: .8, y: .3, s: .8, an: "drift" }], t: "Du hobst den Stift auf, den der Rotstift verlor." },
+    { bg: "white", a: [{ k: "page", x: .5, y: .55, s: 2, an: "pulse" }], t: "Die Seite schrieb sich selbst weiter. Wort für Wort, bis das Ende stand." },
+    { bg: "desk", a: [{ k: "author", x: .45, y: .62, s: 1.5, an: "write" }, { k: "lamp", x: .2, y: .3, s: 1.6 }, { k: "hand", x: .75, y: .66, s: 1.2, an: "write" }], t: "Irgendwo setzte sich ein Mann an einen Tisch und nahm den Stift in die Hand." },
+    { bg: "white", a: [{ k: "heart", x: .5, y: .5, s: 2, an: "pulse" }], t: "Er schrieb: Ende. Und dann, ganz klein: Fortsetzung folgt." },
+  ] },
+  endB: { music: "story", panels: [
+    { bg: "white", a: [{ k: "hero", x: .5, y: .66, s: 1.7, an: "bob" }], t: "Du faltetest dich zusammen, so klein, wie du konntest." },
+    { bg: "night", a: [{ k: "page", x: .5, y: .55, s: 1.6, an: "drift" }, { k: "moon", x: .8, y: .25, s: 1.2, an: "pulse" }], t: "Manche Geschichten brauchen kein Ende. Nur jemanden, der sie liebhat." },
+    { bg: "desk", a: [{ k: "author", x: .45, y: .62, s: 1.5, an: "bob" }, { k: "page", x: .72, y: .7, s: 1, an: "bob" }], t: "Der Mann legte die zerknüllte Seite in eine Schublade, neben ein Kinderbild. Und schloss sie sanft." },
+  ] },
+};
+const CREDITS = ["Papierhelden", "", "Ein Spiel von Leif", "", "Entwicklung", "Leif und Claude", "", "Alle Bilder und Töne", "entstanden im Code", "", "Musik", "von Leif", "", "Du, kleine Seite", "warst die erste Fassung", "", "Danke fürs Spielen", "", "Ende"];
+/* Hintergründe (einmal pro Tafel gezeichnet) */
+function cutBg(kind, w, h) {
+  return offscreen(w, h, 2, c => {
+    const s = sketchCtx(c, strSeed("cb" + kind), 30), r = RNG(strSeed(kind));
+    const grad = (a, b) => { const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, a); g.addColorStop(1, b); c.fillStyle = g; c.fillRect(0, 0, w, h); };
+    if (kind === "desk") { grad("#2b2238", "#4a3326"); c.fillStyle = "#12203a"; c.fillRect(w * .06, h * .1, w * .22, h * .38); c.fillStyle = "#f6efd9"; c.beginPath(); c.arc(w * .21, h * .26, 12, 0, TAU); c.fill(); c.fillStyle = "#6e4425"; c.fillRect(0, h * .72, w, h * .28); const g = c.createRadialGradient(w * .2, h * .3, 10, w * .2, h * .3, w * .5); g.addColorStop(0, "rgba(255,210,120,.5)"); g.addColorStop(1, "rgba(255,210,120,0)"); c.fillStyle = g; c.fillRect(0, 0, w, h); c.fillStyle = "#e9e1c8"; c.fillRect(w * .55, h * .66, w * .2, h * .06); }
+    else if (kind === "night") { grad("#0e1530", "#27305a"); c.fillStyle = "#f6efd9"; for (let i = 0; i < 40; i++) { c.globalAlpha = .3 + r() * .7; c.fillRect(r() * w, r() * h * .7, 2, 2); } c.globalAlpha = 1; c.fillStyle = "#12203a"; c.fillRect(0, h * .8, w, h * .2); }
+    else if (kind === "library") { grad("#3a2a1e", "#6e4425"); for (let y = 0; y < 4; y++) { c.fillStyle = "#4a2f1a"; c.fillRect(0, y * h * .26 + h * .2, w, 5); let x = 6; while (x < w - 10) { const bw = 7 + r() * 8; c.fillStyle = ["#b8473a", "#2b7a86", "#c97d12", "#3a8450", "#7a4fb0", "#d9c597"][Math.floor(r() * 6)]; c.fillRect(x, y * h * .26 + h * .2 - 34 - r() * 8, bw, 34 + r() * 8); x += bw + 1; } } c.fillStyle = "#e8d9b0"; c.fillRect(0, h * .84, w, h * .16); }
+    else if (kind === "sea") { grad("#0e1a44", "#1d2d6a"); c.strokeStyle = "rgba(160,200,230,.4)"; c.lineWidth = 2; for (let y = h * .35; y < h; y += 18) { c.beginPath(); c.moveTo(0, y); for (let x = 0; x <= w; x += 20) c.lineTo(x, y + Math.sin(x * .07 + y) * 5); c.stroke(); } }
+    else if (kind === "red") { c.fillStyle = "#efe3c4"; c.fillRect(0, 0, w, h); c.strokeStyle = "rgba(184,71,58,.85)"; c.lineWidth = 7; c.lineCap = "round"; for (let i = 0; i < 9; i++) { c.beginPath(); c.moveTo(r() * w, r() * h); c.lineTo(r() * w, r() * h); c.stroke(); } c.fillStyle = "rgba(60,20,20,.25)"; c.fillRect(0, 0, w, h); }
+    else { c.fillStyle = "#f6efd9"; c.fillRect(0, 0, w, h); c.strokeStyle = "rgba(43,122,134,.25)"; c.lineWidth = 1.5; for (let y = 24; y < h; y += 22) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke(); } c.strokeStyle = "rgba(184,71,58,.35)"; c.beginPath(); c.moveTo(w * .12, 0); c.lineTo(w * .12, h); c.stroke(); }
+  });
+}
+function actorSpr(k) {
+  return spr("act|" + k, 140, 140, c0 => {
+    const c = sketchCtx(c0, strSeed("ac" + k), 40); c.lineWidth = 3.2;
+    if (k === "author") { c.beginPath(); c.moveTo(-30, 50); c.quadraticCurveTo(-40, -10, -10, -22); c.quadraticCurveTo(24, -22, 34, 50); c.closePath(); c0.fillStyle = "#2a3a5a"; c.fill(); c.stroke(); c.beginPath(); c.arc(-4, -40, 17, 0, TAU); c0.fillStyle = "#e9d2a8"; c.fill(); c.stroke(); c.beginPath(); c.moveTo(24, 0); c.lineTo(52, 22); c.stroke(); c0.fillStyle = "#1d2742"; c.beginPath(); c.arc(-9, -42, 2.2, 0, TAU); c0.fill(); }
+    else if (k === "hand") { c.beginPath(); c.ellipse(0, 4, 13, 9, .2, 0, TAU); c0.fillStyle = "#f1cfa8"; c.fill(); c.stroke(); c.beginPath(); c.moveTo(-6, 0); c.lineTo(-36, 10); c.lineWidth = 4; c0.strokeStyle = "#c97d12"; c.stroke(); c0.strokeStyle = INK; }
+    else if (k === "lamp") { c.beginPath(); c.moveTo(-14, 10); c.lineTo(-8, -18); c.lineTo(8, -18); c.lineTo(14, 10); c.closePath(); c0.fillStyle = "#ffd45a"; c.fill(); c.stroke(); c.beginPath(); c.rect(-5, 10, 10, 26); c0.fillStyle = "#6e4425"; c.fill(); c.stroke(); }
+    else if (k === "moon") { c.beginPath(); c.arc(0, 0, 26, 0, TAU); c0.fillStyle = "#f6efd9"; c.fill(); c.stroke(); c0.fillStyle = "rgba(29,39,66,.2)"; for (const [x, y, r] of [[-8, -6, 6], [8, 8, 4]]) { c0.beginPath(); c0.arc(x, y, r, 0, TAU); c0.fill(); } }
+    else if (k === "star" || k === "heart") { drawGlyph(c0, k, 0, 0, 70, k === "heart" ? BAD : "#ffd45a"); }
+    else if (k === "ink") { c.beginPath(); c.moveTo(0, -34); c.quadraticCurveTo(26, 4, 16, 24); c.quadraticCurveTo(0, 38, -16, 24); c.quadraticCurveTo(-26, 4, 0, -34); c0.fillStyle = "#2a3a80"; c.fill(); c.stroke(); }
+    else if (k === "page") { c.beginPath(); c.moveTo(-30, -20); c.lineTo(-6, -34); c.lineTo(24, -26); c.lineTo(34, 4); c.lineTo(20, 30); c.lineTo(-14, 34); c.lineTo(-34, 10); c.closePath(); c0.fillStyle = "#f6efd9"; c.fill(); c.stroke(); c.lineWidth = 1.6; c0.strokeStyle = "rgba(29,39,66,.35)"; c.beginPath(); c.moveTo(-18, -14); c.lineTo(8, 0); c.lineTo(22, -10); c.moveTo(8, 0); c.lineTo(-4, 22); c.stroke(); c0.strokeStyle = INK; }
+  }, 2);
+}
+function cutActorDraw(c, a, t, pw, ph) {
+  const x = a.x * pw, y = a.y * ph, s = a.s || 1; let ox = 0, oy = 0, rot = a.r || 0, sc = s, al = 1;
+  switch (a.an) { case "bob": oy = Math.sin(t * 2.4) * 4; break; case "write": ox = Math.sin(t * 5) * 3; oy = Math.cos(t * 7) * 1.5; break; case "shake": ox = Math.sin(t * 40) * 2; break; case "pulse": sc = s * (1 + Math.sin(t * 2.6) * .06); break; case "drift": ox = Math.sin(t * .9) * 22; oy = Math.cos(t * 1.3) * 8; rot = Math.sin(t) * .3; break; case "fall": oy = ((t * 40) % (ph * .6)) - ph * .15; al = 1 - Math.max(0, (oy + ph * .15) / (ph * .6) - .7) * 3; break; case "swipe": ox = Math.sin(t * 1.8) * 70; rot = Math.sin(t * 1.8) * .35; break; }
+  const px = x + ox, py = y + oy;
+  if (a.k === "hero") { c.save(); c.translate(px, py); c.scale(sc, sc); drawHeroFig(c, { x: 0, y: 0, dir: PI / 2, moving: a.an === "bob" && false, t, paper: PAPERS[SV.paper || "creme"], scarf: "#2b7a86", roll: 0, alpha: 1 }); c.restore(); return; }
+  if (a.k === "pencil") { const sp = enSpr("rotstift", Math.floor(t * 3) % 2, 0); blit(c, sp, px, py, { s: sc * .9, r: rot }); return; }
+  if (a.k === "lamp") { const g = c.createRadialGradient(px, py, 4, px, py, 90 * sc); g.addColorStop(0, "rgba(255,210,120,.45)"); g.addColorStop(1, "rgba(255,210,120,0)"); c.fillStyle = g; c.fillRect(px - 100, py - 100, 200, 200); }
+  blit(c, actorSpr(a.k), px, py, { s: sc, r: rot, a: al });
+}
+function cutPlay(id, done) {
+  if (CUT.def) return; const d = SCENE_DEFS[id]; if (!d) { done && done(); return; }
+  CUT.def = d; CUT.id = id; CUT.i = 0; CUT.t = 0; CUT.typed = 0; CUT.cb = done || null; CUT.prev = G.scene; CUT.prevName = G.sceneName; CUT.prevMusic = AU.cur || ""; CUT.credits = false; CUT.pcache = {}; CUT.inT = 0;
+  G.scene = SCENES.cut; G.sceneName = "cut"; IN.show = false; cineBars(true); music(d.music || "story");
+}
+function cutEnd() {
+  const cb = CUT.cb, prev = CUT.prev, name = CUT.prevName; CUT.def = null; CUT.cb = null; cineBars(false); sfx("page"); if (CUT.prevMusic) music(CUT.prevMusic);
+  if (prev) { G.scene = prev; G.sceneName = name; IN.show = !!(name === "dungeon" || name === "hub"); }
+  if (cb) cb();
+}
+function cutAdvance() { const p = CUT.def.panels[CUT.i]; if (CUT.typed < p.t.length) { CUT.typed = p.t.length; return; } if (CUT.i < CUT.def.panels.length - 1) { CUT.i++; CUT.t = 0; CUT.typed = 0; CUT.inT = 0; sfx("page"); } else cutEnd(); }
+SCENES.cut = {
+  enter() { },
+  update(dt) {
+    if (!CUT.def) { if (CUT.prev) { G.scene = CUT.prev; G.sceneName = CUT.prevName; } return; }
+    if (CUT.credits) { CUT.t += dt; scrapsUpdate(dt); if (CUT.t > CREDITS.length * 1.05 + 5 || CUT.tap) { if (CUT.t > 3 && CUT.tap) { CUT.tap = false; cutEnd(); } } CUT.tap = false; return; }
+    CUT.t += dt; CUT.inT += dt; const p = CUT.def.panels[CUT.i]; if (CUT.inT > .5) { const before = Math.floor(CUT.typed); CUT.typed = Math.min(p.t.length, CUT.typed + 34 * dt); if (Math.floor(CUT.typed) % 3 === 0 && Math.floor(CUT.typed) !== before) sfx("type", 25); }
+    if (CUT.tap) { CUT.tap = false; if (CUT.inT > .4) cutAdvance(); }
+  },
+  draw(c) {
+    c.fillStyle = "#141a2e"; c.fillRect(0, 0, V.W, V.H); if (!CUT.def) return;
+    if (CUT.credits) { scrapsDraw(c, 0, CUT.t * 20, .5, 0, .6); c.save(); c.textAlign = "center"; CREDITS.forEach((l, i) => { const y = V.H + 30 - CUT.t * 38 + i * 36; if (y < -20 || y > V.H + 20) return; const a = clamp(Math.min(y / 80, (V.H - y) / 80 + .3), 0, 1); c.globalAlpha = a; c.font = (i === 0 ? "60px" : "30px") + " 'Caveat Brush'"; c.fillStyle = i === 0 ? "#ffd45a" : P1; c.fillText(l, V.W / 2, y); }); c.restore(); return; }
+    const p = CUT.def.panels[CUT.i], pw = Math.min(V.W - 120, 620), ph = Math.min(V.H * .5, 200), k = easeOut(clamp(CUT.inT / .5, 0, 1)), px = V.W / 2, py = V.H * .44;
+    const key = CUT.id + CUT.i; let bg = CUT.pcache[key]; if (!bg) bg = CUT.pcache[key] = cutBg(p.bg, pw, ph);
+    c.save(); c.translate(px + (1 - k) * 220, py); c.rotate((1 - k) * .1 - .012); c.globalAlpha = k;
+    c.fillStyle = "rgba(0,0,0,.4)"; c.fillRect(-pw / 2 + 6, -ph / 2 + 8, pw, ph); c.drawImage(bg, -pw / 2, -ph / 2, pw, ph);
+    c.save(); c.beginPath(); c.rect(-pw / 2, -ph / 2, pw, ph); c.clip(); c.translate(-pw / 2, -ph / 2); const zoom = 1 + CUT.t * .012; c.translate(pw / 2, ph / 2); c.scale(zoom, zoom); c.translate(-pw / 2, -ph / 2); p.a.forEach(a => cutActorDraw(c, a, CUT.t, pw, ph)); c.restore();
+    c.strokeStyle = INK; c.lineWidth = 5; c.strokeRect(-pw / 2, -ph / 2, pw, ph); c.restore();
+    c.font = "21px 'Patrick Hand'"; c.textAlign = "center"; const tw = Math.min(V.W - 140, 640), txt = p.t.slice(0, Math.floor(CUT.typed)), lines = wrapText(c, p.t, tw); let rem = txt.length;
+    lines.forEach((l, i) => { const part = l.slice(0, Math.max(0, Math.min(l.length, rem))); rem -= l.length + 1; c.lineWidth = 4; c.strokeStyle = INK; c.fillStyle = P1; c.strokeText(part, V.W / 2, V.H * .44 + ph / 2 + 34 + i * 24); c.fillText(part, V.W / 2, V.H * .44 + ph / 2 + 34 + i * 24); });
+    c.textAlign = "right"; c.font = "16px 'Patrick Hand'"; c.fillStyle = "rgba(246,239,217,.7)"; c.fillText("Tippen: weiter · Halten oben rechts: überspringen", V.W - 14, V.H - 38);
+    c.textAlign = "left"; c.fillText((CUT.i + 1) + " / " + CUT.def.panels.length, 14, V.H - 38);
+  },
+};
+cv.addEventListener("pointerdown", e => { if (G.sceneName !== "cut") return; const p = toLogical(e.clientX, e.clientY); if (p.x > V.W - 130 && p.y < 90) { cutSkipAll(); return; } CUT.tap = true; });
+window.addEventListener("keydown", e => { if (G.sceneName === "cut" && (e.key === " " || e.key === "Enter")) CUT.tap = true; if (G.sceneName === "cut" && e.key === "Escape") cutSkipAll(); });
+function cutSkipAll() { if (!CUT.def) return; if (CUT.credits) { cutEnd(); return; } cutEnd(); }
+function creditsPlay(done) { if (CUT.def) return; CUT.def = { panels: [{ t: "" }] }; CUT.i = 0; CUT.t = 0; CUT.cb = done; CUT.prev = G.scene; CUT.prevName = G.sceneName; CUT.credits = true; CUT.id = "credits"; G.scene = SCENES.cut; G.sceneName = "cut"; IN.show = false; cineBars(false); music("sieg"); scrapsInit(30, V.W, V.H); }
+/* ----- Finale: Enden und Abspann ----- */
+async function endingFlow() {
+  const c = await dlg("Die Seite", "Der Rotstift liegt still. In deiner Hand: ein Stift, der schreiben könnte. Was tust du?", ["Die Geschichte zu Ende schreiben", "Die Seite zerknüllen und loslassen"]);
+  SV.ending = c === 0 ? 1 : 2; saveGame();
+  cutPlay(c === 0 ? "endA" : "endB", () => creditsPlay(() => { SV.flags.ended = 1; saveGame(); transition(() => { DG.def = null; setScene("hub", { fromDungeon: true }); }); }));
+}
 </script>

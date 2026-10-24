@@ -52,6 +52,7 @@ SCENES.dungeon = {
   enter(arg) {
     const def = DG.def; calcStats(); music(def.area === 1 ? "bereich2" : "bereich1"); scrapsInit(20, V.W, V.H); IN.show = true; DG.state = "idle";
     if (SV.run && SV.run.did === def.id && SV.run.hp && !(arg && arg.fresh)) PL.hp = Math.min(PL.max, Math.max(PL.hp, SV.run.hp)); else PL.hp = PL.max;
+    if (DG.jumpBoss) { DG.jumpBoss = false; const bi = DG.nodes.findIndex(n => n.type === "boss"); if (bi >= 0) { DG.cur = bi; DG.fromSide = Object.keys(DG.nodes[bi].door)[0]; DG.nodes.forEach(n => n.visited = true); } }
     this.load(DG.cur, DG.fromSide, true); BT.onDeath = () => { SV.stats.deaths++; toast("Zerknüllt! Du beginnst den Raum neu. Fortschritt bleibt."); transition(() => { const nd = DG.nodes[DG.cur]; nd.cleared = nd.cleared; DG.fromSide = DG.entrySide; this.load(DG.cur, DG.entrySide, false); PL.hp = PL.max; PL.dead = false; }, { d1: .5, d2: .5 }); };
     if (arg && arg.fresh) titleCard(def.ch, def.n, 3000);
   },
@@ -63,7 +64,7 @@ SCENES.dungeon = {
     plReset(sp.x, sp.y); plUnstuck(room); const hp = PL.hp; PL.hp = hp || PL.max; btReset(room, K, def.area); BT.active = true; BT.cdArt = BT.cdArt && BT.cdArt.length ? BT.cdArt : [0, 0, 0]; this.mkProps(nd, room);
     CAM.x = PL.x; CAM.y = PL.y; CAM.z = 1.15; DG.portal = null; DG.wave = 0; DG.waves = 1; this.t = 0; DG.rt = 0;
     const fight = ["combat", "elite", "boss"].includes(nd.type) && !nd.cleared;
-    if (fight) { setDoors(room, false); DG.state = "intro"; DG.introT = 0; DG.waves = nd.type === "combat" ? 2 : 1; if (nd.type === "boss") { music("boss1"); } }
+    if (fight) { setDoors(room, false); DG.state = "intro"; DG.introT = 0; DG.waves = nd.type === "combat" ? 2 : 1; if (nd.type === "boss") { music((BOSS[def.boss] && BOSS[def.boss].music) || "boss1"); DG.bossSpawned = false; DG.plate = null; if (def.boss === "rotstift" && !SV.flags.rsIntro && !DG.rsPlayed) { DG.rsPlayed = true; DG.state = "cut"; setTimeout(() => cutPlay("rotstift_intro", () => { SV.flags.rsIntro = 1; DG.state = "intro"; DG.introT = 0; }), 500); } } }
     else { setDoors(room, true); DG.state = "free"; if (nd.cleared && ["combat", "elite", "boss"].includes(nd.type)) { } }
     if (nd.type === "exit" || (nd.type === "boss" && nd.cleared)) this.mkPortal(room);
     if (nd.solved) this.openCage(room, true);
@@ -89,19 +90,25 @@ SCENES.dungeon = {
   update(dt) {
     this.t += dt; DG.rt += dt; scrapsUpdate(dt); CAM.z = approach(CAM.z, 1, dt * .35); const nd = DG.nodes[DG.cur], room = DG.room;
     combatUpdate(dt); this.props(dt, nd, room); this.tutorial(dt, nd);
-    if (DG.state === "intro") { DG.introT += dt; if (DG.introT > .9) { DG.state = "fight"; this.spawnWave(); if (nd.type === "boss") { sfx("roar"); camShake(8); } } }
+    if (DG.state === "intro") {
+      DG.introT += dt; const boss = nd.type === "boss";
+      if (boss) { BT.freezeEn = true; BT.lockPl = true; CAM.z = approach(CAM.z, 1.3, dt * .8); if (!DG.bossSpawned && DG.introT > .4) { DG.bossSpawned = true; this.spawnWave(); if (BT.boss) { BT.boss.invul = true; sfx("roar"); camShake(9); } } if (DG.plate) DG.plate.t += dt; }
+      if (DG.introT > (boss ? 3.4 : .9)) { DG.state = "fight"; BT.freezeEn = false; BT.lockPl = false; if (boss) { if (BT.boss) BT.boss.invul = false; DG.plate = null; } else this.spawnWave(); }
+    }
     else if (DG.state === "fight") {
       const alive = BT.en.some(e => !e.dead);
-      if (!alive && !PL.dead) { if (DG.wave < DG.waves) { DG.waveT = (DG.waveT || 0) + dt; if (DG.waveT > 1.3) { DG.waveT = 0; this.spawnWave(); } } else this.cleared(nd, room); }
+      if (!alive && !PL.dead) { if (nd.type !== "boss" && DG.wave < DG.waves) { DG.waveT = (DG.waveT || 0) + dt; if (DG.waveT > 1.3) { DG.waveT = 0; this.spawnWave(); } } else this.cleared(nd, room); }
     }
-    if (DG.portal) { DG.portal.t += dt; if (!PL.dead && dist(PL.x, PL.y, DG.portal.x, DG.portal.y) < 22) this.finish(); }
+    if (DG.portal) { DG.portal.t += dt; if (!PL.dead && DG.state !== "cut" && dist(PL.x, PL.y, DG.portal.x, DG.portal.y) < 22) this.finish(); }
     this.doorCheck(nd, room); this.secret(nd, room);
-    if (PL.dead) { } const tg = PL.dead ? null : nearestEnemy(PL.x, PL.y, 140); camFollow(PL.x + (tg ? (tg.x - PL.x) * .15 : 0), PL.y + (tg ? (tg.y - PL.y) * .15 : 0), { w: room.w * TS, h: room.h * TS }, dt);
+    if (PL.dead) { } const introCam = DG.state === "intro" && nd.type === "boss"; const tg = PL.dead ? null : nearestEnemy(PL.x, PL.y, 140); if (introCam) camFollow(room.w * TS / 2, room.h * TS / 2, { w: room.w * TS, h: room.h * TS }, dt); else camFollow(PL.x + (tg ? (tg.x - PL.x) * .15 : 0), PL.y + (tg ? (tg.y - PL.y) * .15 : 0), { w: room.w * TS, h: room.h * TS }, dt);
     if (wasPressed("menu")) pauseMenu();
   },
   cleared(nd, room) {
     DG.state = "free"; nd.cleared = true; setDoors(room, true); sfx("door"); camShake(3); if (ST.heal) healPlayer(PL.max * ST.heal);
-    if (nd.type === "boss") { slowmo(1.2, .25); cineFlash("#fff", .6); this.mkPortal(room); music(DG.def.area === 1 ? "bereich2" : "bereich1"); const it = genItem(DG.K + 2, undefined, undefined, { luck: ST.luck + 60, minRar: 2 }); addPickup("item", room.w * TS / 2, room.h * TS / 2 + 40, { it }); }
+    if (nd.type === "boss") { DG.state = "cut"; const it = genItem(DG.K + 2, undefined, undefined, { luck: ST.luck + 60, minRar: 2 }); addPickup("item", room.w * TS / 2, room.h * TS / 2 + 40, { it }); addPickup("item", room.w * TS / 2 + 30, room.h * TS / 2 + 40, { it: genItem(DG.K + 2, undefined, undefined, { luck: ST.luck + 30, minRar: 1 }) });
+      const mem = { 1: "mem1", 3: "mem2", 6: "mem3" }[DG.def.id], after = () => { DG.state = "free"; music(DG.def.area === 1 ? "bereich2" : "bereich1"); if (DG.def.id === 7) endingFlow(); else this.mkPortal(room); };
+      setTimeout(() => { if (mem && !SV.flags[mem]) { SV.flags[mem] = 1; cutPlay(mem, after); } else after(); }, 3200); }
     else if (Math.random() < .3 || nd.type === "elite") { const p = { x: room.w * TS / 2, y: room.h * TS / 2 }; const c = addProp("chest", p.x, p.y); c.key = "r"; }
     dgSave();
   },
@@ -148,7 +155,7 @@ SCENES.dungeon = {
     camBegin(c); drawRoomBG(c, room); this.drawDoors(c, room); drawTorchSprites(c, room, G.t); this.drawProps(c); if (DG.portal) this.drawPortal(c); combatDraw(c); drawTorches(c, room, G.t); camEnd(c);
     const s = w2s(PL.x, PL.y), L = [{ x: s.x, y: s.y, r: 240 }]; room.torches.forEach(t => { const q = w2s(t.x, t.y + 14); L.push({ x: q.x, y: q.y, r: 120, k: .8 }); }); if (DG.portal) { const q = w2s(DG.portal.x, DG.portal.y); L.push({ x: q.x, y: q.y, r: 150, k: .9 }); }
     for (const sd in room.doors) { const d = room.doors[sd]; if (d.open) { const cc = d.cells[0], q = w2s((cc[0] + 1) * TS, (cc[1] + .5) * TS); L.push({ x: q.x, y: q.y, r: 90, k: .6 }); } }
-    drawLighting(c, th.dark * .9, L); scrapsDraw(c, CAM.x, CAM.y, .35, 1, 3); drawVignette(c, .8); hudDraw(c); this.drawMap(c); this.drawHint(c); drawControls(c, { btns: combatBtns() });
+    drawLighting(c, th.dark * .9, L); scrapsDraw(c, CAM.x, CAM.y, .35, 1, 3); drawVignette(c, .8); hudDraw(c); this.drawMap(c); this.drawHint(c); this.drawPlate(c); drawControls(c, { btns: combatBtns() });
   },
   drawDoors(c, room) { for (const sd in room.doors) { const d = room.doors[sd]; if (d.secret && !d.rev) continue; const [a, b] = d.cells, x = Math.min(a[0], b[0]) * TS, y = Math.min(a[1], b[1]) * TS, w = Math.abs(a[0] - b[0]) * TS + TS, h = Math.abs(a[1] - b[1]) * TS + TS; if (!d.open) { blit(c, doorSpr(w, h), x + w / 2, y + h / 2); } else { c.save(); c.globalAlpha = .5 + Math.sin(G.t * 3) * .1; c.fillStyle = "rgba(255,230,150,.45)"; c.fillRect(x, y, w, h); c.restore(); } } },
   drawProps(c) { for (const p of BT.props) { if (p.k === "spike") blit(c, spikeSpr(p.up ? 2 : p.warn ? 1 : 0), p.x, p.y); else if (p.k === "plate") blit(c, plateSpr(p.lit), p.x, p.y); else if (p.k === "crystal") blit(c, crystalSpr(p.lit), p.x, p.y - 4, { s: 1 + (p.lit ? Math.sin(G.t * 4) * .04 : 0) }); else if (p.k === "fountain") blit(c, fountSpr(p.used), p.x, p.y); else if (p.k === "turret") { c.save(); c.translate(p.x, p.y); c.rotate(p.a || 0); c.fillStyle = INK; c.beginPath(); c.arc(0, 0, 8, 0, TAU); c.fill(); c.fillStyle = BAD; c.fillRect(2, -3, 10, 6); c.restore(); } } },
@@ -162,6 +169,7 @@ SCENES.dungeon = {
       const g = { boss: "skull", elite: "skull", treasure: "chest", puzzle: "gear", shrine: "heart", exit: "page", secret: "star", trap: "cross" }[n.type]; if (g && n.visited) drawGlyph(c, g, x, y, 9, n.type === "boss" ? BAD : INK); });
     c.restore();
   },
+  drawPlate(c) { const p = DG.plate; if (!p || !p.t) return; const a = clamp(Math.min(p.t / .4, (3.2 - p.t) / .5), 0, 1); c.save(); c.globalAlpha = a; c.textAlign = "center"; c.lineWidth = 7; c.strokeStyle = INK; c.fillStyle = "#ffd45a"; c.font = "58px 'Caveat Brush'"; const y = V.H * .78; c.strokeText(p.n, V.W / 2, y); c.fillText(p.n, V.W / 2, y); c.font = "22px 'Patrick Hand'"; c.lineWidth = 4; c.fillStyle = P1; c.strokeText(p.sub, V.W / 2, y + 26); c.fillText(p.sub, V.W / 2, y + 26); c.restore(); },
   drawHint(c) { const h = DG.hint; if (!h) return; const a = clamp(Math.min(h.t * 3, 1), 0, 1); c.save(); c.globalAlpha = a; c.font = "20px 'Patrick Hand'"; c.textAlign = "center"; const lines = wrapText(c, h.txt, Math.min(V.W - 240, 520)); const y = V.H * .2; const w = Math.max(...lines.map(l => c.measureText(l).width)) + 28, hh = lines.length * 22 + 14; c.fillStyle = "rgba(29,39,66,.82)"; c.fillRect(V.W / 2 - w / 2, y - 20, w, hh); c.fillStyle = P1; lines.forEach((l, i) => c.fillText(l, V.W / 2, y + i * 22)); c.restore(); },
 };
 const r2 = (arr, n) => { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a.slice(0, n); };

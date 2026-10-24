@@ -41,3 +41,9 @@ Gemeinsames Hauptthema (fünf Töne): D, F, A, G, E. Der eingebaute Ersatz spiel
 ## Admin-Feld
 
 Am Desktop mit F2, auf dem Handy fünfmal schnell auf den Titel tippen (Titelbild) oder fünfmal auf die Lebensleiste im Spiel.
+
+## Spielablauf und Testhinweise
+- Hub (Papierdorf): Händlerin, Schmied, alter Index, Tintentor. 9 Dungeons (8 Kapitel plus Endlose Tiefe), 4 Bosse (Korrekturgolem, Lektor, Tintenkrake, Rotstift), zwei Enden und Abspann.
+- Admin-Feld: 5-mal auf den Titel tippen (oder F2): Stufen, Beute, Unverwundbarkeit, Dungeons, Bosse direkt starten, alle Szenen abspielen.
+- Spielstand: localStorage plus Exportcode (`PH1:` komprimiert, `PH0:` wird weiter gelesen).
+- Musik: MP3s optional in `public/musik/<name>.mp3` (Namen siehe Tabelle). Fehlt eine Datei, spielt eine einfache synthetische Melodie mit dem gemeinsamen Motiv.

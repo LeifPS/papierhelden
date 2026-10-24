@@ -41,7 +41,7 @@ SCENES.hub = {
     calcStats(); const th = THEMES[2]; this.room = buildRoom("hub", { theme: 2, seed: 4242, doors: {} }); const room = this.room;
     const sp = (arg && arg.fromDungeon) ? { x: 22 * TS, y: 7 * TS } : { x: 22 * TS, y: 14 * TS }; plReset(sp.x, sp.y); plUnstuck(room); PL.hp = PL.max; btReset(room, 1, 0); BT.active = false; ADM && 0;
     CAM.x = PL.x; CAM.y = PL.y; CAM.z = 1.2; IN.show = true; music("hub"); scrapsInit(26, V.W, V.H); this.t = 0; this.near = null; DG.def = null; saveGame();
-    if (arg && arg.isNew) setTimeout(() => this.firstTalk(), 700);
+    if (arg && arg.isNew && !arg.silent) setTimeout(() => this.firstTalk(), 700);
   },
   async firstTalk() { const n = HUB_NPC[2]; await say(n.n, INDEX_LINES[0]); SV.flags.met = 1; saveGame(); },
   update(dt) {
@@ -125,6 +125,6 @@ function openSettings() {
   w.querySelector("#x").onclick = () => { saveGame(); winClose(); }; w.querySelector("#s1").oninput = e => { s.sfx = +e.target.value; auVol("sfx", s.sfx); }; w.querySelector("#s2").oninput = e => { s.mus = +e.target.value; auVol("mus", s.mus); };
 }
 function openCodeOut() {
-  const w = winOpen(`<h2><span>Spielstand-Code</span><span class="sp"></span><button class="mini" id="x">${gi("cross", INK)}</button></h2><div class="body"><div class="dim">Kopiere diesen Text, um deinen Fortschritt woanders einzufügen.</div><textarea class="txtin" id="cd" rows="5" style="width:100%" readonly>${exportCode()}</textarea><button class="btn" id="cp" style="margin-top:6px">Kopieren</button></div>`); w.style.width = "min(90vw,520px)";
-  w.querySelector("#x").onclick = () => winClose(); w.querySelector("#cp").onclick = () => { try { navigator.clipboard.writeText(w.querySelector("#cd").value); toast("Kopiert"); } catch (e) { w.querySelector("#cd").select(); } };
+  const w = winOpen(`<h2><span>Spielstand-Code</span><span class="sp"></span><button class="mini" id="x">${gi("cross", INK)}</button></h2><div class="body"><div class="dim">Kopiere diesen Text, um deinen Fortschritt woanders einzufügen.</div><textarea class="txtin" id="cd" rows="5" style="width:100%" readonly>…</textarea><button class="btn" id="cp" style="margin-top:6px">Kopieren</button></div>`); w.style.width = "min(90vw,520px)";
+  exportCodeZ().then(z => { const t = w.querySelector("#cd"); if (t) t.value = z; }); w.querySelector("#x").onclick = () => winClose(); w.querySelector("#cp").onclick = () => { try { navigator.clipboard.writeText(w.querySelector("#cd").value); toast("Kopiert"); } catch (e) { w.querySelector("#cd").select(); } };
 }

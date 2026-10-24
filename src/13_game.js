@@ -60,7 +60,7 @@ function newGameDialog() {
   w.querySelector("#bx").onclick = () => { sfx("click"); winClose(); };
   w.querySelector("#bg").onclick = () => { const nm = (w.querySelector("#nm").value || "").replace(/[<>&"]/g, "").trim() || "Held"; sfx("click"); SV = defaultSave(); SV.name = nm; SV.paper = paper; if (window.starterGear) starterGear(); saveGame(); winClose(); startGame(true); };
 }
-function startGame(isNew) { SV.sets = SV.sets || { sfx: .8, mus: .6 }; if (SCENES.hub) transition(() => { setScene("hub", { isNew }); }); else startDungeon(0, 0, !isNew && SV.run && SV.run.did === 0); }
+function startGame(isNew) { SV.sets = SV.sets || { sfx: .8, mus: .6 }; if (isNew && !SV.flags.introSeen) transition(() => { setScene("hub", { isNew, silent: true }); cutPlay("intro", () => { SV.flags.introSeen = 1; saveGame(); SCENES.hub.firstTalk(); }); }); else transition(() => { setScene("hub", { isNew }); }); }
 function codeDialog() {
   const w = winOpen(`<h2>Code laden</h2><div class="body"><div class="dim">Füge hier deinen Exportcode ein:</div><textarea class="code" id="cd"></textarea></div><div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn" id="bx">Zurück</button><button class="btn big" id="bg">Laden</button></div>`);
   w.style.width = "min(94vw,560px)"; w.querySelector("#bx").onclick = () => { sfx("click"); winClose(); };
@@ -68,7 +68,9 @@ function codeDialog() {
 }
 /* ----- Start ----- */
 function exportCode() { return "PH0:" + btoa(unescape(encodeURIComponent(JSON.stringify(SV)))); }
-async function importCode(s) { try { s = (s || "").trim(); if (!s.startsWith("PH0:")) return false; const o = JSON.parse(decodeURIComponent(escape(atob(s.slice(4))))); if (!o || o.v !== 1) return false; SV = Object.assign(defaultSave(), o); saveGame(); return true; } catch (e) { return false; } }
+async function exportCodeZ() { try { if (!window.CompressionStream) return exportCode(); const cs = new CompressionStream("gzip"), w = cs.writable.getWriter(); w.write(new TextEncoder().encode(JSON.stringify(SV))); w.close(); const buf = new Uint8Array(await new Response(cs.readable).arrayBuffer()); let b = ""; buf.forEach(x => b += String.fromCharCode(x)); return "PH1:" + btoa(b); } catch (e) { return exportCode(); } }
+async function importCodeZ(s) { const b = atob(s.slice(4)), u = Uint8Array.from(b, ch => ch.charCodeAt(0)), ds = new DecompressionStream("gzip"), w = ds.writable.getWriter(); w.write(u); w.close(); return new TextDecoder().decode(await new Response(ds.readable).arrayBuffer()); }
+async function importCode(s) { try { s = (s || "").trim(); let o; if (s.startsWith("PH1:")) o = JSON.parse(await importCodeZ(s)); else if (s.startsWith("PH0:")) o = JSON.parse(decodeURIComponent(escape(atob(s.slice(4))))); else return false; if (!o || o.v !== 1) return false; SV = Object.assign(defaultSave(), o); saveGame(); return true; } catch (e) { return false; } }
 async function boot() {
   resize(); try { await Promise.all([document.fonts.load("40px 'Caveat Brush'"), document.fonts.load("20px 'Patrick Hand'")]); } catch (e) {}
   if (hasSave()) loadGame(); layoutControls(); setScene("title"); requestAnimationFrame(frame);

@@ -6,10 +6,14 @@ function adminBuild() {
   a.innerHTML = `<div class="row"><h2 style="margin:0;font:400 28px var(--f-display);color:var(--accent)">Admin</h2><span style="flex:1"></span><button class="btn" data-a="close">Schließen</button></div>
   <h3>Allgemein</h3>${B("Unverwundbar " + (ADM.invul ? "AN" : "aus"), "invul")}${B("FPS " + (G.showFps ? "AN" : "aus"), "fps")}${B("Volle Heilung", "heal")}${B("Titelbild", "title")}${B("Übungsraum", "arena")}${B("Spielstand löschen", "wipe")}
   <h3>Beute und Stufen</h3>${B("Stufe +5", "lv5")}${B("+1000 Taler", "gold")}${B("+10 Punkte", "vp")}${B("Zufallsbeute x5", "loot")}${B("Legendär", "leg")}${B("Einzigartig", "uni")}${B("Dungeon-Stufe + " + (SV.stufe || 0), "st+")}${B("Dungeon-Stufe -", "st-")}${B("Rucksack/Schmiede", "inv")}${B("Schmiede", "smith")}
-  <h3>Dungeons</h3>${DUNGEONS.map(d => B(d.id + ": " + d.n, "dg" + d.id)).join("")}${B("Letzten Lauf fortsetzen", "dgres")}`;
+  <h3>Dungeons</h3>${DUNGEONS.map(d => B(d.id + ": " + d.n, "dg" + d.id)).join("")}${B("Letzten Lauf fortsetzen", "dgres")}
+  <h3>Bosse direkt starten</h3>${[1, 3, 6, 7].map(i => B(BOSS[BOSS_BY_DUNGEON[i]].n, "bs" + i)).join("")}
+  <h3>Szenen abspielen</h3>${Object.keys(SCENE_DEFS).map(k => B(k, "sc_" + k)).join("")}${B("Abspann", "sc_credits")}${B("Ende wählen", "sc_end")}`;
   a.onclick = e => { const b = e.target.closest("[data-a]"); if (!b) return; adminAct(b.dataset.a); };
 }
 function adminAct(id) {
+  if (id.startsWith("sc_")) { adminToggle(); const k = id.slice(3); if (k === "credits") creditsPlay(() => { }); else if (k === "end") endingFlow(); else cutPlay(k, () => { }); return; }
+  if (id.startsWith("bs")) { adminToggle(); DG.jumpBoss = true; startDungeon(+id.slice(2), SV.stufe || 0, false); return; }
   if (id.startsWith("dg") && id !== "dgres") { adminToggle(); startDungeon(+id.slice(2), SV.stufe || 0, false); return; }
   switch (id) {
     case "close": adminToggle(); return;
