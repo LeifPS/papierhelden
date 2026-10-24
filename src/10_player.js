@@ -65,3 +65,9 @@ function wpnSpr(base) {
     }
   });
 }
+
+/* Spielfigur aus Wänden lösen: sucht den nächsten freien Platz in Spiralen */
+function plUnstuck(room) {
+  if (!boxHits(room, PL.x, PL.y, PL.hb * .78, false)) return;
+  for (let r = 6; r < 200; r += 6) for (let k = 0; k < 16; k++) { const a = k / 16 * TAU, x = PL.x + Math.cos(a) * r, y = PL.y + Math.sin(a) * r; if (!boxHits(room, x, y, PL.hb * .78 + 2, false)) { PL.x = x; PL.y = y; return; } }
+}

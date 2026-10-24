@@ -1,7 +1,7 @@
 /* ===== Hub: Papierdorf mit Händlerin, Schmied, dem alten Index und dem Tintentor ===== */
 defTpl("hub", "hub", 44, 26, B => {
   B.fill(5, 2, 10, 4, "#"); B.fill(33, 2, 38, 4, "#"); B.fill(18, 1, 25, 3, "#"); B.fill(21, 1, 22, 3, ".");
-  for (const [x, y] of [[14, 8], [29, 8], [8, 14], [35, 14], [14, 20], [29, 20], [22, 14]]) B.set(x, y, "o");
+  for (const [x, y] of [[14, 8], [29, 8], [8, 14], [35, 14], [14, 20], [29, 20], [26, 12], [18, 12]]) B.set(x, y, "o");
   B.pts("b", [[3, 7], [12, 5], [31, 5], [40, 7], [4, 22], [39, 22], [20, 21], [24, 21]]);
 });
 const HUB_NPC = [
@@ -39,7 +39,7 @@ const BRUNO_LINES = ["Aus Papier wird Stahl, wenn man es oft genug faltet.", "Br
 SCENES.hub = {
   enter(arg) {
     calcStats(); const th = THEMES[2]; this.room = buildRoom("hub", { theme: 2, seed: 4242, doors: {} }); const room = this.room;
-    const sp = (arg && arg.fromDungeon) ? { x: 22 * TS, y: 7 * TS } : { x: 22 * TS, y: 14 * TS }; plReset(sp.x, sp.y); PL.hp = PL.max; btReset(room, 1, 0); BT.active = false; ADM && 0;
+    const sp = (arg && arg.fromDungeon) ? { x: 22 * TS, y: 7 * TS } : { x: 22 * TS, y: 14 * TS }; plReset(sp.x, sp.y); plUnstuck(room); PL.hp = PL.max; btReset(room, 1, 0); BT.active = false; ADM && 0;
     CAM.x = PL.x; CAM.y = PL.y; CAM.z = 1.2; IN.show = true; music("hub"); scrapsInit(26, V.W, V.H); this.t = 0; this.near = null; DG.def = null; saveGame();
     if (arg && arg.isNew) setTimeout(() => this.firstTalk(), 700);
   },

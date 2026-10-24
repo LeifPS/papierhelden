@@ -60,7 +60,7 @@ SCENES.dungeon = {
     const doors = {}; for (const k in nd.door) doors[k] = nd.door[k]; const room = buildRoom(nd.tpl, { theme: def.area === 1 ? 1 : 0, seed: nd.seed, doors, flipX: nd.flipX, flipY: nd.flipY }); DG.room = room;
     for (const k in room.doors) if (nd.door[k].secret && nd.door[k].rev) { room.doors[k].rev = true; room.doors[k].cells.forEach(([x, y]) => room.g[y * room.w + x] = TL.F); }
     const sp = side ? doorSpawn(room, side) : (nd.type === "start" ? { x: room.w * TS / 2, y: room.h * TS / 2 } : doorSpawn(room, Object.keys(room.doors)[0]));
-    plReset(sp.x, sp.y); const hp = PL.hp; PL.hp = hp || PL.max; btReset(room, K, def.area); BT.active = true; BT.cdArt = BT.cdArt && BT.cdArt.length ? BT.cdArt : [0, 0, 0]; this.mkProps(nd, room);
+    plReset(sp.x, sp.y); plUnstuck(room); const hp = PL.hp; PL.hp = hp || PL.max; btReset(room, K, def.area); BT.active = true; BT.cdArt = BT.cdArt && BT.cdArt.length ? BT.cdArt : [0, 0, 0]; this.mkProps(nd, room);
     CAM.x = PL.x; CAM.y = PL.y; CAM.z = 1.15; DG.portal = null; DG.wave = 0; DG.waves = 1; this.t = 0; DG.rt = 0;
     const fight = ["combat", "elite", "boss"].includes(nd.type) && !nd.cleared;
     if (fight) { setDoors(room, false); DG.state = "intro"; DG.introT = 0; DG.waves = nd.type === "combat" ? 2 : 1; if (nd.type === "boss") { music("boss1"); } }

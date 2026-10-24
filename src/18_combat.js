@@ -5,7 +5,7 @@ function enMove(e, dx, dy, dt) {
   if (hit) { const l = Math.hypot(dx, dy) || 1; moveEnt(BT.room, e, -dy / l * e.sg * Math.hypot(dx, dy) * dt * .8, dx / l * e.sg * Math.hypot(dx, dy) * dt * .8, e.d.fly); e.stuck += dt; if (e.stuck > .8) { e.sg *= -1; e.stuck = 0; } } else e.stuck = 0;
 }
 function enPickAttack(e, d) {
-  const ok = e.d.atk.filter(a => { const rg = a.range || a.range === 0 ? a.range : 40; if (a.t === "melee" || a.t === "slam") return d < rg + e.r + PL.r * .5; if (a.t === "lunge") return d < rg && lineClear(BT.room, e.x, e.y, PL.x, PL.y); return d < rg && lineClear(BT.room, e.x, e.y, PL.x, PL.y); });
+  const ok = e.d.atk.filter(a => { if ((a.p || 1) > (e.phase || 1)) return false; if (a.t === "summon" && BT.en.filter(x => !x.dead && x.summoned).length > 4) return false; if (a.t === "rain" || a.t === "summon") return d < (a.range || 500); const rg = a.range || a.range === 0 ? a.range : 40; if (a.t === "melee" || a.t === "slam") return d < rg + e.r + PL.r * .5; if (a.t === "lunge") return d < rg && lineClear(BT.room, e.x, e.y, PL.x, PL.y); return d < rg && lineClear(BT.room, e.x, e.y, PL.x, PL.y); });
   return ok.length ? ok[Math.floor(Math.random() * ok.length)] : null;
 }
 function enStart(e, a) {
@@ -16,22 +16,26 @@ function enStart(e, a) {
   else if (a.t === "slam") e.tele = addTele(Object.assign(base, { k: "circle", r: a.r, fn: t => { if (teleHit(t)) enHit(e, dm, ang(t.x, t.y, PL.x, PL.y)); fxRing(t.x, t.y, 4, a.r, .35, "#fff"); fxBurst(t.x, t.y, 8, "#f6efd9", 90, .4, "bit", 2.5, 40); camShake(a.shake || 3); sfx("slam", 60); endAct(e, a); } }));
   else if (a.t === "lunge") e.tele = addTele(Object.assign(base, { k: "rect", len: a.dist + e.r, w: (a.wide || e.r) * 2, fn: () => { e.st = "act"; e.stT = 0; e.lunge = { a: e.face, left: a.dist, hit: false }; sfx("dash", 60); } }));
   else if (a.t === "shoot") e.tele = addTele(Object.assign(base, a.n > 1 ? { k: "cone", r: Math.min(a.range, 220), arc: a.spread + .12 } : { k: "rect", len: Math.min(a.range, 240), w: 5 }, { col: "#e27d2c", fn: t => { enShot(e, a, t.a, a.n, a.spread, a.ps, a.pr, 1); sfx("eshoot", 40); endAct(e, a); } }));
+  else if (a.t === "summon") e.tele = addTele(Object.assign(base, { k: "circle", r: 46, col: PURP, fn: t => { for (let i = 0; i < a.n; i++) { const an = Math.random() * TAU, x = e.x + Math.cos(an) * 50, y = e.y + Math.sin(an) * 50; const s2 = spawnEnemy(a.id, freeAt(BT.room, x, y, 10) ? x : e.x, freeAt(BT.room, x, y, 10) ? y : e.y, { K: e.K, summoned: true }); } fxRing(e.x, e.y, 6, 60, .4, PURP); sfx("roar"); endAct(e, a); } }));
+  else if (a.t === "rain") { const mk = (i) => { const jx = i ? (Math.random() - .5) * 150 : 0, jy = i ? (Math.random() - .5) * 150 : 0, x = PL.x + jx, y = PL.y + jy; return addTele({ k: "circle", own: e, x, y, r: a.r, dur: a.w + i * .22, col: BAD, fn: t => { if (teleHit(t)) enHit(e, dm, ang(t.x, t.y, PL.x, PL.y)); fxRing(t.x, t.y, 4, a.r, .3, "#fff"); fxBurst(t.x, t.y, 6, ["#b8473a", "#2a3a80"], 90, .4, "bit", 2.5); camShake(2); sfx("slam", 60); if (i === a.n - 1) endAct(e, a); } }); }; for (let i = 0; i < a.n; i++) { const t = mk(i); if (i === 0) e.tele = t; } e.teleKeep = 1; }
+  else if (a.t === "beam") e.tele = addTele(Object.assign(base, { k: "rect", len: a.len, w: a.wid, fn: t => { if (teleHit(t)) enHit(e, dm * 1.2, t.a); fxBurst(t.x + Math.cos(t.a) * a.len / 2, t.y + Math.sin(t.a) * a.len / 2, 16, ["#b8473a", "#fff"], 160, .4, "spark", 2.4); cineFlash("#b8473a", .25); camShake(7); sfx("boom"); endAct(e, a); } }));
   else if (a.t === "burst") e.tele = addTele(Object.assign(base, { k: "circle", r: 36, col: "#e27d2c", fn: t => { const o = a.spin ? (G.t * 2) % TAU : 0; for (let i = 0; i < a.n; i++) { const an = o + i / a.n * TAU; addProj({ x: e.x + Math.cos(an) * 16, y: e.y + Math.sin(an) * 16, vx: Math.cos(an) * a.ps, vy: Math.sin(an) * a.ps, dmg: dm * .8, own: "e", kind: a.pr, src: e, life: 3 }); } fxRing(e.x, e.y, 6, 50, .3, "#2a3a80"); sfx("eshoot", 40); endAct(e, a); } }));
 }
-function endAct(e, a) { e.tele = null; e.st = "rec"; e.stT = 0; e.recT = a.rec; e.cdT = (a.cd || 1) * (e.mods.cd || 1); }
+function endAct(e, a) { e.tele = null; e.teleKeep = 0; e.st = "rec"; e.stT = 0; e.recT = a.rec; e.cdT = (a.cd || 1) * (e.mods.cd || 1); }
 function enHit(e, dmg, a) { if (hurtPlayer(dmg, e, { a })) { if (e.mods.vamp) { e.hp = Math.min(e.max, e.hp + dmg * .4); fxText(e.x, e.y - e.r, "+", "#7a4fb0", 14); } } }
 function enUpdate(e, dt) {
   if (e.dead) return; e.t += dt; e.flash = Math.max(0, e.flash - dt); e.stT += dt; e.cdT -= dt;
   const kx = e.kx, ky = e.ky; if (Math.abs(kx) + Math.abs(ky) > 4) { moveEnt(BT.room, e, kx * dt, ky * dt, e.d.fly); e.kx *= Math.exp(-9 * dt); e.ky *= Math.exp(-9 * dt); } else { e.kx = e.ky = 0; }
   if (e.burnT > 0) { e.burnT -= dt; e.bacc = (e.bacc || 0) + dt; if (e.bacc >= .5) { e.bacc = 0; hurtEnemy(e, e.burnD * .5, { noChain: 1 }); } if (Math.random() < dt * 14) fxPart({ x: e.x + (Math.random() - .5) * e.r, y: e.y, vy: -40, life: .4, col: "#e27d2c", sz: 2.5 }); }
   if (e.slowT > 0) e.slowT -= dt; if (e.dead) return;
+  if (e.big && e.d.phases && e.st !== "spawn") { const k = e.hp / e.max, ph = e.d.phases === 3 ? (k < .33 ? 3 : k < .66 ? 2 : 1) : (k < .5 ? 2 : 1); if (ph > (e.phase || 1)) bossPhase(e, ph); }
   const d = dist(e.x, e.y, PL.x, PL.y), toP = ang(e.x, e.y, PL.x, PL.y), sp = enSpd(e); if (PL.dead && e.st === "move") { e.face += dt; return; }
   switch (e.st) {
     case "spawn": e.alpha = clamp(e.stT / .6, 0, 1); if (e.stT >= .6) { e.st = "move"; e.alpha = 1; } break;
     case "stun": if (e.stT >= (e.stunD || .5)) { e.st = "move"; } break;
     case "wind": {
       const a = e.atk; if ((a.t === "lunge" || a.t === "shoot") && e.tele && e.stT < a.w * .6) { e.face = angTo(e.face, toP, dt * 7); e.tele.a = e.face; }
-      if (e.tele) { e.tele.x = e.x; e.tele.y = e.y; if (a.t === "melee" || a.t === "slam") e.tele.a = e.face = a.t === "melee" ? angTo(e.face, toP, dt * 5) : e.face; }
+      if (e.tele && !e.teleKeep) { e.tele.x = e.x; e.tele.y = e.y; if (a.t === "melee" || a.t === "slam") e.tele.a = e.face = a.t === "melee" ? angTo(e.face, toP, dt * 5) : e.face; }
       break;
     }
     case "act": { const L = e.lunge, step = Math.min(L.left, e.atk.spd * dt * (BT.slowAll > 0 ? .5 : 1)); const hit = moveEnt(BT.room, e, Math.cos(L.a) * step, Math.sin(L.a) * step, e.d.fly); L.left -= step; if (Math.random() < .5) fxPart({ x: e.x, y: e.y, life: .25, col: "rgba(29,39,66,.35)", sz: e.r * .6, shape: "dot" });
@@ -126,9 +130,9 @@ function zapsDraw(c) { for (const z of BT.zaps) { c.save(); c.globalAlpha = 1 - 
 /* ----- Gesamt-Update, Zeichnen, HUD ----- */
 function combatUpdate(dt) {
   BT.t += dt; BT.slowAll = Math.max(0, BT.slowAll - dt); BT.hurtFlash = Math.max(0, BT.hurtFlash - dt); BT.bossHit = Math.max(0, (BT.bossHit || 0) - dt);
-  plUpdate(dt, BT.room, { attack: plAttack });
+  if (!BT.lockPl) plUpdate(dt, BT.room, { attack: plAttack });
   if (ST.regen && !PL.dead) PL.hp = Math.min(PL.max, PL.hp + ST.regen * dt);
-  for (const e of BT.en) enUpdate(e, dt); BT.en = BT.en.filter(e => !e.dead || (e.dieT = (e.dieT || 0) + dt) < 0 && false);
+  for (const e of BT.en) if (!BT.freezeEn || e.st === "spawn") enUpdate(e, dt); BT.en = BT.en.filter(e => !e.dead || (e.dieT = (e.dieT || 0) + dt) < 0 && false);
   teleUpdate(dt); projUpdate(dt); hazUpdate(dt); pickupUpdate(dt); propsUpdate(dt); minesUpdate(dt); zapsUpdate(dt); fxUpdate(dt);
   if (BT.boss && BT.boss.dead) BT.boss = null;
 }

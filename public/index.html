@@ -742,6 +742,12 @@ function wpnSpr(base) {
     }
   });
 }
+
+/* Spielfigur aus Wänden lösen: sucht den nächsten freien Platz in Spiralen */
+function plUnstuck(room) {
+  if (!boxHits(room, PL.x, PL.y, PL.hb * .78, false)) return;
+  for (let r = 6; r < 200; r += 6) for (let k = 0; k < 16; k++) { const a = k / 16 * TAU, x = PL.x + Math.cos(a) * r, y = PL.y + Math.sin(a) * r; if (!boxHits(room, x, y, PL.hb * .78 + 2, false)) { PL.x = x; PL.y = y; return; } }
+}
 /* ===== Kino: Letterbox, Seitenumblättern, Licht und Vignette, Parallaxe-Papierfetzen, Partikel und Zahlen ===== */
 const CINE = { bars: 0, barT: 0, fade: 0, fadeT: 0, fadeCol: "#141a2e", flashA: 0, flashCol: "#fff" };
 function cineBars(on) { CINE.barT = on ? 1 : 0; }
@@ -1441,7 +1447,7 @@ function enMove(e, dx, dy, dt) {
   if (hit) { const l = Math.hypot(dx, dy) || 1; moveEnt(BT.room, e, -dy / l * e.sg * Math.hypot(dx, dy) * dt * .8, dx / l * e.sg * Math.hypot(dx, dy) * dt * .8, e.d.fly); e.stuck += dt; if (e.stuck > .8) { e.sg *= -1; e.stuck = 0; } } else e.stuck = 0;
 }
 function enPickAttack(e, d) {
-  const ok = e.d.atk.filter(a => { const rg = a.range || a.range === 0 ? a.range : 40; if (a.t === "melee" || a.t === "slam") return d < rg + e.r + PL.r * .5; if (a.t === "lunge") return d < rg && lineClear(BT.room, e.x, e.y, PL.x, PL.y); return d < rg && lineClear(BT.room, e.x, e.y, PL.x, PL.y); });
+  const ok = e.d.atk.filter(a => { if ((a.p || 1) > (e.phase || 1)) return false; if (a.t === "summon" && BT.en.filter(x => !x.dead && x.summoned).length > 4) return false; if (a.t === "rain" || a.t === "summon") return d < (a.range || 500); const rg = a.range || a.range === 0 ? a.range : 40; if (a.t === "melee" || a.t === "slam") return d < rg + e.r + PL.r * .5; if (a.t === "lunge") return d < rg && lineClear(BT.room, e.x, e.y, PL.x, PL.y); return d < rg && lineClear(BT.room, e.x, e.y, PL.x, PL.y); });
   return ok.length ? ok[Math.floor(Math.random() * ok.length)] : null;
 }
 function enStart(e, a) {
@@ -1452,22 +1458,26 @@ function enStart(e, a) {
   else if (a.t === "slam") e.tele = addTele(Object.assign(base, { k: "circle", r: a.r, fn: t => { if (teleHit(t)) enHit(e, dm, ang(t.x, t.y, PL.x, PL.y)); fxRing(t.x, t.y, 4, a.r, .35, "#fff"); fxBurst(t.x, t.y, 8, "#f6efd9", 90, .4, "bit", 2.5, 40); camShake(a.shake || 3); sfx("slam", 60); endAct(e, a); } }));
   else if (a.t === "lunge") e.tele = addTele(Object.assign(base, { k: "rect", len: a.dist + e.r, w: (a.wide || e.r) * 2, fn: () => { e.st = "act"; e.stT = 0; e.lunge = { a: e.face, left: a.dist, hit: false }; sfx("dash", 60); } }));
   else if (a.t === "shoot") e.tele = addTele(Object.assign(base, a.n > 1 ? { k: "cone", r: Math.min(a.range, 220), arc: a.spread + .12 } : { k: "rect", len: Math.min(a.range, 240), w: 5 }, { col: "#e27d2c", fn: t => { enShot(e, a, t.a, a.n, a.spread, a.ps, a.pr, 1); sfx("eshoot", 40); endAct(e, a); } }));
+  else if (a.t === "summon") e.tele = addTele(Object.assign(base, { k: "circle", r: 46, col: PURP, fn: t => { for (let i = 0; i < a.n; i++) { const an = Math.random() * TAU, x = e.x + Math.cos(an) * 50, y = e.y + Math.sin(an) * 50; const s2 = spawnEnemy(a.id, freeAt(BT.room, x, y, 10) ? x : e.x, freeAt(BT.room, x, y, 10) ? y : e.y, { K: e.K, summoned: true }); } fxRing(e.x, e.y, 6, 60, .4, PURP); sfx("roar"); endAct(e, a); } }));
+  else if (a.t === "rain") { const mk = (i) => { const jx = i ? (Math.random() - .5) * 150 : 0, jy = i ? (Math.random() - .5) * 150 : 0, x = PL.x + jx, y = PL.y + jy; return addTele({ k: "circle", own: e, x, y, r: a.r, dur: a.w + i * .22, col: BAD, fn: t => { if (teleHit(t)) enHit(e, dm, ang(t.x, t.y, PL.x, PL.y)); fxRing(t.x, t.y, 4, a.r, .3, "#fff"); fxBurst(t.x, t.y, 6, ["#b8473a", "#2a3a80"], 90, .4, "bit", 2.5); camShake(2); sfx("slam", 60); if (i === a.n - 1) endAct(e, a); } }); }; for (let i = 0; i < a.n; i++) { const t = mk(i); if (i === 0) e.tele = t; } e.teleKeep = 1; }
+  else if (a.t === "beam") e.tele = addTele(Object.assign(base, { k: "rect", len: a.len, w: a.wid, fn: t => { if (teleHit(t)) enHit(e, dm * 1.2, t.a); fxBurst(t.x + Math.cos(t.a) * a.len / 2, t.y + Math.sin(t.a) * a.len / 2, 16, ["#b8473a", "#fff"], 160, .4, "spark", 2.4); cineFlash("#b8473a", .25); camShake(7); sfx("boom"); endAct(e, a); } }));
   else if (a.t === "burst") e.tele = addTele(Object.assign(base, { k: "circle", r: 36, col: "#e27d2c", fn: t => { const o = a.spin ? (G.t * 2) % TAU : 0; for (let i = 0; i < a.n; i++) { const an = o + i / a.n * TAU; addProj({ x: e.x + Math.cos(an) * 16, y: e.y + Math.sin(an) * 16, vx: Math.cos(an) * a.ps, vy: Math.sin(an) * a.ps, dmg: dm * .8, own: "e", kind: a.pr, src: e, life: 3 }); } fxRing(e.x, e.y, 6, 50, .3, "#2a3a80"); sfx("eshoot", 40); endAct(e, a); } }));
 }
-function endAct(e, a) { e.tele = null; e.st = "rec"; e.stT = 0; e.recT = a.rec; e.cdT = (a.cd || 1) * (e.mods.cd || 1); }
+function endAct(e, a) { e.tele = null; e.teleKeep = 0; e.st = "rec"; e.stT = 0; e.recT = a.rec; e.cdT = (a.cd || 1) * (e.mods.cd || 1); }
 function enHit(e, dmg, a) { if (hurtPlayer(dmg, e, { a })) { if (e.mods.vamp) { e.hp = Math.min(e.max, e.hp + dmg * .4); fxText(e.x, e.y - e.r, "+", "#7a4fb0", 14); } } }
 function enUpdate(e, dt) {
   if (e.dead) return; e.t += dt; e.flash = Math.max(0, e.flash - dt); e.stT += dt; e.cdT -= dt;
   const kx = e.kx, ky = e.ky; if (Math.abs(kx) + Math.abs(ky) > 4) { moveEnt(BT.room, e, kx * dt, ky * dt, e.d.fly); e.kx *= Math.exp(-9 * dt); e.ky *= Math.exp(-9 * dt); } else { e.kx = e.ky = 0; }
   if (e.burnT > 0) { e.burnT -= dt; e.bacc = (e.bacc || 0) + dt; if (e.bacc >= .5) { e.bacc = 0; hurtEnemy(e, e.burnD * .5, { noChain: 1 }); } if (Math.random() < dt * 14) fxPart({ x: e.x + (Math.random() - .5) * e.r, y: e.y, vy: -40, life: .4, col: "#e27d2c", sz: 2.5 }); }
   if (e.slowT > 0) e.slowT -= dt; if (e.dead) return;
+  if (e.big && e.d.phases && e.st !== "spawn") { const k = e.hp / e.max, ph = e.d.phases === 3 ? (k < .33 ? 3 : k < .66 ? 2 : 1) : (k < .5 ? 2 : 1); if (ph > (e.phase || 1)) bossPhase(e, ph); }
   const d = dist(e.x, e.y, PL.x, PL.y), toP = ang(e.x, e.y, PL.x, PL.y), sp = enSpd(e); if (PL.dead && e.st === "move") { e.face += dt; return; }
   switch (e.st) {
     case "spawn": e.alpha = clamp(e.stT / .6, 0, 1); if (e.stT >= .6) { e.st = "move"; e.alpha = 1; } break;
     case "stun": if (e.stT >= (e.stunD || .5)) { e.st = "move"; } break;
     case "wind": {
       const a = e.atk; if ((a.t === "lunge" || a.t === "shoot") && e.tele && e.stT < a.w * .6) { e.face = angTo(e.face, toP, dt * 7); e.tele.a = e.face; }
-      if (e.tele) { e.tele.x = e.x; e.tele.y = e.y; if (a.t === "melee" || a.t === "slam") e.tele.a = e.face = a.t === "melee" ? angTo(e.face, toP, dt * 5) : e.face; }
+      if (e.tele && !e.teleKeep) { e.tele.x = e.x; e.tele.y = e.y; if (a.t === "melee" || a.t === "slam") e.tele.a = e.face = a.t === "melee" ? angTo(e.face, toP, dt * 5) : e.face; }
       break;
     }
     case "act": { const L = e.lunge, step = Math.min(L.left, e.atk.spd * dt * (BT.slowAll > 0 ? .5 : 1)); const hit = moveEnt(BT.room, e, Math.cos(L.a) * step, Math.sin(L.a) * step, e.d.fly); L.left -= step; if (Math.random() < .5) fxPart({ x: e.x, y: e.y, life: .25, col: "rgba(29,39,66,.35)", sz: e.r * .6, shape: "dot" });
@@ -1562,9 +1572,9 @@ function zapsDraw(c) { for (const z of BT.zaps) { c.save(); c.globalAlpha = 1 - 
 /* ----- Gesamt-Update, Zeichnen, HUD ----- */
 function combatUpdate(dt) {
   BT.t += dt; BT.slowAll = Math.max(0, BT.slowAll - dt); BT.hurtFlash = Math.max(0, BT.hurtFlash - dt); BT.bossHit = Math.max(0, (BT.bossHit || 0) - dt);
-  plUpdate(dt, BT.room, { attack: plAttack });
+  if (!BT.lockPl) plUpdate(dt, BT.room, { attack: plAttack });
   if (ST.regen && !PL.dead) PL.hp = Math.min(PL.max, PL.hp + ST.regen * dt);
-  for (const e of BT.en) enUpdate(e, dt); BT.en = BT.en.filter(e => !e.dead || (e.dieT = (e.dieT || 0) + dt) < 0 && false);
+  for (const e of BT.en) if (!BT.freezeEn || e.st === "spawn") enUpdate(e, dt); BT.en = BT.en.filter(e => !e.dead || (e.dieT = (e.dieT || 0) + dt) < 0 && false);
   teleUpdate(dt); projUpdate(dt); hazUpdate(dt); pickupUpdate(dt); propsUpdate(dt); minesUpdate(dt); zapsUpdate(dt); fxUpdate(dt);
   if (BT.boss && BT.boss.dead) BT.boss = null;
 }
@@ -1773,7 +1783,7 @@ SCENES.dungeon = {
     const doors = {}; for (const k in nd.door) doors[k] = nd.door[k]; const room = buildRoom(nd.tpl, { theme: def.area === 1 ? 1 : 0, seed: nd.seed, doors, flipX: nd.flipX, flipY: nd.flipY }); DG.room = room;
     for (const k in room.doors) if (nd.door[k].secret && nd.door[k].rev) { room.doors[k].rev = true; room.doors[k].cells.forEach(([x, y]) => room.g[y * room.w + x] = TL.F); }
     const sp = side ? doorSpawn(room, side) : (nd.type === "start" ? { x: room.w * TS / 2, y: room.h * TS / 2 } : doorSpawn(room, Object.keys(room.doors)[0]));
-    plReset(sp.x, sp.y); const hp = PL.hp; PL.hp = hp || PL.max; btReset(room, K, def.area); BT.active = true; BT.cdArt = BT.cdArt && BT.cdArt.length ? BT.cdArt : [0, 0, 0]; this.mkProps(nd, room);
+    plReset(sp.x, sp.y); plUnstuck(room); const hp = PL.hp; PL.hp = hp || PL.max; btReset(room, K, def.area); BT.active = true; BT.cdArt = BT.cdArt && BT.cdArt.length ? BT.cdArt : [0, 0, 0]; this.mkProps(nd, room);
     CAM.x = PL.x; CAM.y = PL.y; CAM.z = 1.15; DG.portal = null; DG.wave = 0; DG.waves = 1; this.t = 0; DG.rt = 0;
     const fight = ["combat", "elite", "boss"].includes(nd.type) && !nd.cleared;
     if (fight) { setDoors(room, false); DG.state = "intro"; DG.introT = 0; DG.waves = nd.type === "combat" ? 2 : 1; if (nd.type === "boss") { music("boss1"); } }
@@ -1888,7 +1898,7 @@ function fountSpr(used) { return spr("fo|" + used, 52, 52, c0 => { const c = ske
 /* ===== Hub: Papierdorf mit Händlerin, Schmied, dem alten Index und dem Tintentor ===== */
 defTpl("hub", "hub", 44, 26, B => {
   B.fill(5, 2, 10, 4, "#"); B.fill(33, 2, 38, 4, "#"); B.fill(18, 1, 25, 3, "#"); B.fill(21, 1, 22, 3, ".");
-  for (const [x, y] of [[14, 8], [29, 8], [8, 14], [35, 14], [14, 20], [29, 20], [22, 14]]) B.set(x, y, "o");
+  for (const [x, y] of [[14, 8], [29, 8], [8, 14], [35, 14], [14, 20], [29, 20], [26, 12], [18, 12]]) B.set(x, y, "o");
   B.pts("b", [[3, 7], [12, 5], [31, 5], [40, 7], [4, 22], [39, 22], [20, 21], [24, 21]]);
 });
 const HUB_NPC = [
@@ -1926,7 +1936,7 @@ const BRUNO_LINES = ["Aus Papier wird Stahl, wenn man es oft genug faltet.", "Br
 SCENES.hub = {
   enter(arg) {
     calcStats(); const th = THEMES[2]; this.room = buildRoom("hub", { theme: 2, seed: 4242, doors: {} }); const room = this.room;
-    const sp = (arg && arg.fromDungeon) ? { x: 22 * TS, y: 7 * TS } : { x: 22 * TS, y: 14 * TS }; plReset(sp.x, sp.y); PL.hp = PL.max; btReset(room, 1, 0); BT.active = false; ADM && 0;
+    const sp = (arg && arg.fromDungeon) ? { x: 22 * TS, y: 7 * TS } : { x: 22 * TS, y: 14 * TS }; plReset(sp.x, sp.y); plUnstuck(room); PL.hp = PL.max; btReset(room, 1, 0); BT.active = false; ADM && 0;
     CAM.x = PL.x; CAM.y = PL.y; CAM.z = 1.2; IN.show = true; music("hub"); scrapsInit(26, V.W, V.H); this.t = 0; this.near = null; DG.def = null; saveGame();
     if (arg && arg.isNew) setTimeout(() => this.firstTalk(), 700);
   },
@@ -2015,4 +2025,30 @@ function openCodeOut() {
   const w = winOpen(`<h2><span>Spielstand-Code</span><span class="sp"></span><button class="mini" id="x">${gi("cross", INK)}</button></h2><div class="body"><div class="dim">Kopiere diesen Text, um deinen Fortschritt woanders einzufügen.</div><textarea class="txtin" id="cd" rows="5" style="width:100%" readonly>${exportCode()}</textarea><button class="btn" id="cp" style="margin-top:6px">Kopieren</button></div>`); w.style.width = "min(90vw,520px)";
   w.querySelector("#x").onclick = () => winClose(); w.querySelector("#cp").onclick = () => { try { navigator.clipboard.writeText(w.querySelector("#cd").value); toast("Kopiert"); } catch (e) { w.querySelector("#cd").select(); } };
 }
+/* ===== Bosse: Werte, Zeichnungen, Phasen, neue Angriffsarten ===== */
+Object.assign(BOSS, {
+  golem: { n: "Korrekturgolem", sub: "Der erste Wächter der Randnotizen", role: "mini", hp: 900, dmg: 16, spd: 40, r: 30, art: 30, sz: 190, ai: "chase", xp: 140, col: "#8d8da0", music: "boss1", phases: 2,
+    atk: [{ t: "slam", r: 86, w: 1.0, rec: 1.0, cd: 2.2, range: 70, at: "self", shake: 6 }, { t: "lunge", dist: 170, spd: 360, w: .9, rec: 1.3, cd: 2.8, range: 210, wide: 26 }, { t: "burst", n: 12, ps: 150, pr: "red", w: .9, rec: 1.2, cd: 3.4, range: 360, spin: 1, p: 2 }, { t: "summon", id: "zettel", n: 2, w: 1.0, rec: .8, cd: 7, range: 420, p: 2 }] },
+  lektor: { n: "Der Lektor", sub: "Er liest, bis nichts mehr übrig ist", role: "boss", hp: 1500, dmg: 18, spd: 68, r: 20, art: 21, sz: 150, ai: "tele", xp: 260, col: "#4a4a58", music: "boss1", phases: 2,
+    atk: [{ t: "melee", range: 66, arc: 2.4, w: .6, rec: .9, cd: 1.6, tp: 1 }, { t: "shoot", n: 5, spread: 1.2, ps: 210, pr: "red", w: .7, rec: .9, cd: 2.6, range: 380 }, { t: "rain", n: 5, r: 44, w: .85, rec: 1, cd: 3.6, range: 520 }, { t: "summon", id: "korrektor", n: 1, w: 1.0, rec: .8, cd: 10, range: 500, p: 2 }, { t: "beam", len: 420, wid: 34, w: 1.1, rec: 1.0, cd: 4, range: 440, p: 2 }] },
+  krake: { n: "Die Tintenkrake", sub: "Das Meer, das nie trocknete", role: "mini", hp: 1400, dmg: 20, spd: 38, r: 34, art: 34, sz: 200, ai: "keep", keep: [110, 210], xp: 300, col: "#2a3a80", music: "boss1", phases: 2,
+    atk: [{ t: "rain", n: 7, r: 46, w: .9, rec: 1.1, cd: 3.2, range: 520 }, { t: "burst", n: 14, ps: 140, pr: "ink", w: .9, rec: 1.2, cd: 3.6, range: 380, spin: 1 }, { t: "shoot", n: 3, spread: .6, ps: 150, pr: "glob", w: .8, rec: 1, cd: 2.8, range: 420 }, { t: "slam", r: 90, w: 1.0, rec: 1, cd: 3, range: 80, at: "self", shake: 6 }, { t: "summon", id: "kleckschen", n: 3, w: 1, rec: .8, cd: 7, range: 500, p: 2 }] },
+  rotstift: { n: "Der Rotstift", sub: "Ein Ende ist ein Abschied", role: "boss", hp: 2600, dmg: 24, spd: 62, r: 28, art: 28, sz: 190, ai: "keep", keep: [100, 210], fly: 1, xp: 600, col: "#b8473a", music: "finalboss", phases: 3,
+    atk: [{ t: "lunge", dist: 270, spd: 540, w: .8, rec: 1.1, cd: 2.6, range: 340, wide: 24 }, { t: "rain", n: 8, r: 42, w: .85, rec: 1.1, cd: 3.4, range: 560 }, { t: "burst", n: 16, ps: 160, pr: "red", w: .9, rec: 1.2, cd: 3.6, range: 420, spin: 1 }, { t: "shoot", n: 7, spread: 1.5, ps: 220, pr: "red", w: .7, rec: .9, cd: 2.6, range: 400 }, { t: "beam", len: 460, wid: 40, w: 1.1, rec: 1, cd: 4, range: 480, p: 2 }, { t: "summon", id: "streichung", n: 3, w: 1, rec: .8, cd: 8, range: 520, p: 2 }, { t: "rain", n: 12, r: 40, w: .75, rec: .9, cd: 2.8, range: 560, p: 3 }] },
+});
+const BOSS_BY_DUNGEON = { 1: "golem", 3: "lektor", 6: "krake", 7: "rotstift" };
+Object.assign(ART, {
+  golem(c0, c, s, fr, col) { const b = fr ? 1.5 : 0; c.lineWidth = 3.4; for (const d of [-1, 1]) { c.beginPath(); c.rect(d * s * 1.05 - s * .25, -s * .4 - b, s * .5, s * 1.1); c0.fillStyle = shade(col, -.08); c.fill(); c.stroke(); } c.beginPath(); c.rect(-s * .8, -s * .5, s * 1.6, s * 1.4); c0.fillStyle = col; c.fill(); c.stroke(); c0.fillStyle = "#f6efd9"; c.beginPath(); c.rect(-s * .55, -s * .3, s * 1.1, s * .75); c.fill(); c.stroke(); c.lineWidth = 2; for (let i = 0; i < 4; i++) { c.beginPath(); c.moveTo(-s * .45, -s * .15 + i * s * .17); c.lineTo(s * .45, -s * .15 + i * s * .17); c.stroke(); } c.beginPath(); c.rect(-s * .55, -s * 1.15 - b, s * 1.1, s * .65); c0.fillStyle = col; c.fill(); c.stroke(); c0.strokeStyle = BAD; c.lineWidth = 4; for (const d of [-1, 1]) { c.beginPath(); c.moveTo(d * s * .3 - s * .13, -s * .95 - b); c.lineTo(d * s * .3 + s * .13, -s * .7 - b); c.moveTo(d * s * .3 + s * .13, -s * .95 - b); c.lineTo(d * s * .3 - s * .13, -s * .7 - b); c.stroke(); } c0.strokeStyle = INK; },
+  lektor(c0, c, s, fr, col) { const b = fr ? 1.2 : 0; c.lineWidth = 3; c.beginPath(); c.moveTo(-s * .8, s * 1.1); c.lineTo(-s * .55, -s * .5 - b); c.quadraticCurveTo(0, -s * .9, s * .55, -s * .5 - b); c.lineTo(s * .8, s * 1.1); c.closePath(); c0.fillStyle = col; c.fill(); c.stroke(); c.beginPath(); c.arc(0, -s * 1.0 - b, s * .5, 0, TAU); c0.fillStyle = "#f0dcc0"; c.fill(); c.stroke(); c.lineWidth = 2.4; for (const d of [-1, 1]) { c.beginPath(); c.arc(d * s * .22, -s * 1.0 - b, s * .2, 0, TAU); c0.fillStyle = "rgba(255,255,255,.7)"; c.fill(); c.stroke(); } c0.fillStyle = INK; for (const d of [-1, 1]) { c0.beginPath(); c0.arc(d * s * .22, -s * 1.0 - b, 2, 0, TAU); c0.fill(); } c0.fillStyle = "#e9e1c8"; c.lineWidth = 3; c.beginPath(); c.rect(s * .35, s * .05, s * .55, s * .7); c.fill(); c.stroke(); c.lineWidth = 4; c0.strokeStyle = BAD; c.beginPath(); c.moveTo(-s * .85, s * .1); c.lineTo(-s * 1.35, -s * .6); c.stroke(); c0.strokeStyle = INK; },
+  krake(c0, c, s, fr, col) { const w = fr ? 1 : -1; c.lineWidth = 3.4; for (let i = 0; i < 6; i++) { const a = PI * .15 + i * PI * .14 + PI * .0, x = Math.cos(a + PI * .35) * s * .8; c.beginPath(); c.moveTo(-s * .8 + i * s * .32, s * .2); c.quadraticCurveTo(-s * 1.1 + i * s * .44 + w * 4, s * 1.1, -s * 1.3 + i * s * .52, s * 1.25 + w * 3); c.lineWidth = 7; c0.strokeStyle = INK; c.stroke(); c0.strokeStyle = col; c.lineWidth = 3; c.stroke(); c0.strokeStyle = INK; } c.lineWidth = 3.4; c.beginPath(); c.moveTo(-s * 1.0, s * .4); c.quadraticCurveTo(-s * 1.2, -s * .9, 0, -s * 1.1); c.quadraticCurveTo(s * 1.2, -s * .9, s * 1.0, s * .4); c.quadraticCurveTo(0, s * .7, -s * 1.0, s * .4); c0.fillStyle = col; c.fill(); c.stroke(); c0.fillStyle = "#fff"; for (const d of [-1, 1]) { c0.beginPath(); c0.ellipse(d * s * .4, -s * .3, s * .22, s * .3, 0, 0, TAU); c0.fill(); c.beginPath(); c.ellipse(d * s * .4, -s * .3, s * .22, s * .3, 0, 0, TAU); c.stroke(); } c0.fillStyle = INK; for (const d of [-1, 1]) { c0.beginPath(); c0.arc(d * s * .42, -s * .25, s * .1, 0, TAU); c0.fill(); } },
+  rotstift(c0, c, s, fr, col) { const b = fr ? 2 : -2; c.lineWidth = 3.6; c.save?.call(c0); c0.save(); c0.rotate(-PI / 2); c0.translate(0, b); c.beginPath(); c.rect(-s * 1.5, -s * .5, s * 2.2, s); c0.fillStyle = col; c.fill(); c.stroke(); c.beginPath(); c.moveTo(s * .7, -s * .5); c.lineTo(s * 1.5, 0); c.lineTo(s * .7, s * .5); c.closePath(); c0.fillStyle = "#f1d9a8"; c.fill(); c.stroke(); c.beginPath(); c.moveTo(s * 1.2, -s * .2); c.lineTo(s * 1.5, 0); c.lineTo(s * 1.2, s * .2); c.closePath(); c0.fillStyle = INK; c.fill(); c0.fillStyle = "#c9c9d4"; c.beginPath(); c.rect(-s * 1.7, -s * .5, s * .25, s); c.fill(); c.stroke(); c0.fillStyle = "#f4b6c2"; c.beginPath(); c.rect(-s * 2.05, -s * .5, s * .35, s); c.fill(); c.stroke(); c0.restore(); c0.fillStyle = "#fff"; for (const d of [-1, 1]) { c0.beginPath(); c0.ellipse(d * s * .22, -s * .1, s * .17, s * .22, 0, 0, TAU); c0.fill(); c.beginPath(); c.ellipse(d * s * .22, -s * .1, s * .17, s * .22, 0, 0, TAU); c.stroke(); } c0.fillStyle = INK; for (const d of [-1, 1]) { c0.beginPath(); c0.arc(d * s * .22, -s * .05, s * .07, 0, TAU); c0.fill(); } c.lineWidth = 3.4; c.beginPath(); c.moveTo(-s * .45, -s * .42); c.lineTo(-s * .05, -s * .28); c.moveTo(s * .45, -s * .42); c.lineTo(s * .05, -s * .28); c.stroke(); },
+});
+function spawnBossFor(def, x, y) { const id = def.boss; if (!id || !BOSS[id]) return null; const e = spawnEnemy(id, x, y, { K: DG.K }); e.big = true; e.phase = 1; BT.boss = e; e.d = Object.assign({}, e.d, { onDie: bossDie }); DG.plate = { n: e.d.n, sub: e.d.sub, t: 0 }; return e; }
+function bossDie(e) {
+  for (const x of BT.en) if (!x.dead && x !== e) { x.hp = 0; x.summoned = true; enKill(x, {}); } for (const t of BT.tele) t.dead = true; BT.pj.length = 0; DG.bossDead = true;
+  slowmo(1.8, .18); cineFlash("#fff", .8); camShake(14); sfx("bossdie"); cineBars(true); for (let i = 0; i < 4; i++) setTimeout(() => { fxRing(e.x, e.y, 6, 140, .8, "#f6efd9"); fxBurst(e.x, e.y, 24, [e.d.col, "#1d2742", "#f6efd9"], 220, .9, "bit", 3.4, 160); }, i * 260);
+  setTimeout(() => cineBars(false), 2800);
+}
+/* Phasenwechsel: Brüllen, Schütteln, Zeitlupe */
+function bossPhase(e, ph) { e.phase = ph; e.invul = true; setTimeout(() => e.invul = false, 900); sfx("roar"); camShake(10); cineFlash("#b8473a", .45); fxRing(e.x, e.y, 8, 200, .7, "#b8473a"); fxText(e.x, e.y - e.r - 20, ph === 3 ? "Das Ende wird gestrichen!" : "Streichung!", "#ffd45a", 22); e.cdT = 1.2; if (e.tele) { e.tele.dead = true; e.tele = null; } e.st = "move"; slowmo(.5, .3); }
 </script>
