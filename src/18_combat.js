@@ -182,7 +182,7 @@ SCENES.arena = {
 };
 
 function pauseMenu() {
-  sfx("page"); const w = winOpen(`<h2><span>Pause</span><span class="sp"></span></h2><div class="body" style="display:flex;flex-direction:column;gap:8px;align-items:stretch"><button class="btn big" id="r">Weiter</button><button class="btn big" id="b">${gi("bag", INK)} Rucksack</button><button class="btn" id="m">Zum Titel</button></div>`); w.style.width = "min(70vw,320px)";
+  sfx("page"); const w = winOpen(`<h2><span>Pause</span><span class="sp"></span></h2><div class="body" style="display:flex;flex-direction:column;gap:8px;align-items:stretch"><button class="btn big" id="r">Weiter</button><button class="btn big" id="b">${gi("bag", INK)} Rucksack</button>${DG.def && G.sceneName === "dungeon" ? `<button class="btn" id="h">Zurück ins Dorf (Lauf bleibt gespeichert)</button>` : ""}<button class="btn" id="m">Zum Titel</button></div>`); w.style.width = "min(70vw,340px)"; const hb = w.querySelector("#h"); if (hb) hb.onclick = () => { sfx("click"); winClose(); dgSave(); transition(() => setScene("hub", { fromDungeon: true })); };
   w.querySelector("#r").onclick = () => { sfx("click"); winClose(); }; w.querySelector("#b").onclick = () => { sfx("click"); openInventory("bag", () => { }); };
   w.querySelector("#m").onclick = () => { sfx("click"); winClose(); saveGame(); transition(() => setScene("title")); };
 }

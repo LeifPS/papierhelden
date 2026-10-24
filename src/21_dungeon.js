@@ -140,8 +140,8 @@ SCENES.dungeon = {
   },
   finish() {
     if (DG.state === "done") return; DG.state = "done"; const def = DG.def; SV.done[def.id] = Math.max(SV.done[def.id] || 0, DG.tier + 1); if (DG.tier >= (SV.stufeMax || 0) && !def.endless) SV.stufeMax = DG.tier + 1; if (def.endless) SV.stufeMax = Math.max(SV.stufeMax || 0, DG.tier + 1);
-    const bonus = Math.round(40 * pw(DG.K) * (def.boss ? 3 : 1)); SV.gold += bonus; SV.run = null; saveGame(); sfx("victory"); cineFlash("#fff", .7); titleCard("Kapitel geschafft", def.n, 2600); toast(`+${bonus} Papiertaler`);
-    setTimeout(() => transition(() => { DG.def = null; setScene(SCENES.hub ? "hub" : "title"); }), 2400);
+    const bonus = Math.round(40 * pw(DG.K) * (def.boss ? 3 : 1)); SV.gold += bonus; SV.run = null; SV.shop = null; saveGame(); sfx("victory"); cineFlash("#fff", .7); titleCard("Kapitel geschafft", def.n, 2600); toast(`+${bonus} Papiertaler`);
+    setTimeout(() => transition(() => { DG.def = null; setScene("hub", { fromDungeon: true }); }), 2400);
   },
   draw(c) {
     const room = DG.room, th = THEMES[room.theme]; c.fillStyle = th.bgCol; c.fillRect(0, 0, V.W, V.H); scrapsDraw(c, CAM.x, CAM.y, .5, 0, .6);
