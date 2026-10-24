@@ -148,11 +148,11 @@ function dropLoot(e) {
   let chance = role === "fuss" ? .045 : role === "fern" ? .055 : role === "elite" ? .45 : 1; chance *= 1 + lk / 100; if (e.modIds.length) chance = Math.min(1, chance + .25);
   if (r() < chance) { const minRar = role === "boss" ? 2 : role === "mini" ? 1 : e.modIds.length ? 1 : 0; const n = role === "boss" ? 2 : 1; for (let i = 0; i < n; i++) { let it = genItem(K + (r() < .4 ? 1 : 0), undefined, undefined, { luck: lk + (role === "boss" ? 40 : 0), minRar }); if (role === "boss" && i === 0 && r() < .22 + lk * .002) it = genItem(K, 4); addPickup("item", e.x, e.y, { it }); } }
 }
-function addPickup(k, x, y, o) { const a = Math.random() * TAU, s = k === "item" ? 40 : 70 + Math.random() * 60; BT.pk.push(Object.assign({ k, x, y, z: 0, vz: 150 + Math.random() * 80, vx: Math.cos(a) * s, vy: Math.sin(a) * s, t: 0, got: false }, o)); }
+function addPickup(k, x, y, o) { for (let i = 0; i < 30 && solidAt(BT.room, x, y, false); i++) { const a = ang(x, y, PL.x, PL.y); x += Math.cos(a) * 10; y += Math.sin(a) * 10; } const a = Math.random() * TAU, s = k === "item" ? 40 : 70 + Math.random() * 60; BT.pk.push(Object.assign({ k, x, y, z: 0, vz: 150 + Math.random() * 80, vx: Math.cos(a) * s, vy: Math.sin(a) * s, t: 0, got: false }, o)); }
 const pickImg = {}; function itemImg(it) { const key = it.slot + it.base + it.rar; if (!pickImg[key]) { const im = new Image(); im.src = itemIcon(it); pickImg[key] = im; } return pickImg[key]; }
 function pickupUpdate(dt) {
   for (let i = BT.pk.length - 1; i >= 0; i--) {
-    const p = BT.pk[i]; p.t += dt; if (p.vz !== 0 || p.z > 0) { p.vz -= 520 * dt; p.z += p.vz * dt; if (p.z <= 0) { p.z = 0; p.vz = Math.abs(p.vz) > 60 ? -p.vz * .4 : 0; p.vx *= .5; p.vy *= .5; } const nx = p.x + p.vx * dt, ny = p.y + p.vy * dt; if (!solidAt(BT.room, nx, p.y, true)) p.x = nx; else p.vx = 0; if (!solidAt(BT.room, p.x, ny, true)) p.y = ny; else p.vy = 0; p.vx *= Math.exp(-2 * dt); p.vy *= Math.exp(-2 * dt); }
+    const p = BT.pk[i]; p.t += dt; if (p.vz !== 0 || p.z > 0) { p.vz -= 520 * dt; p.z += p.vz * dt; if (p.z <= 0) { p.z = 0; p.vz = Math.abs(p.vz) > 60 ? -p.vz * .4 : 0; p.vx *= .5; p.vy *= .5; } const nx = p.x + p.vx * dt, ny = p.y + p.vy * dt; if (!solidAt(BT.room, nx, p.y, false)) p.x = nx; else p.vx = 0; if (!solidAt(BT.room, p.x, ny, false)) p.y = ny; else p.vy = 0; p.vx *= Math.exp(-2 * dt); p.vy *= Math.exp(-2 * dt); }
     const d = dist(p.x, p.y, PL.x, PL.y); if (PL.dead) continue;
     if (p.k !== "item" && p.t > .35 && d < (ST.magnet || 78)) { const k = 260 * dt; p.x += (PL.x - p.x) / d * k * (1 + (78 - d) / 40); p.y += (PL.y - p.y) / d * k * (1 + (78 - d) / 40); }
     if (p.t > .3 && d < (p.k === "item" ? 22 : 17)) { collect(p); BT.pk.splice(i, 1); }

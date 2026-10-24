@@ -60,7 +60,7 @@ function newGameDialog() {
   w.querySelector("#bx").onclick = () => { sfx("click"); winClose(); };
   w.querySelector("#bg").onclick = () => { const nm = (w.querySelector("#nm").value || "").replace(/[<>&"]/g, "").trim() || "Held"; sfx("click"); SV = defaultSave(); SV.name = nm; SV.paper = paper; if (window.starterGear) starterGear(); saveGame(); winClose(); startGame(true); };
 }
-function startGame(isNew) { SV.sets = SV.sets || { sfx: .8, mus: .6 }; transition(() => { setScene(SCENES.hub ? "hub" : "arena", { isNew }); }); }
+function startGame(isNew) { SV.sets = SV.sets || { sfx: .8, mus: .6 }; if (SCENES.hub) transition(() => { setScene("hub", { isNew }); }); else startDungeon(0, 0, !isNew && SV.run && SV.run.did === 0); }
 function codeDialog() {
   const w = winOpen(`<h2>Code laden</h2><div class="body"><div class="dim">Füge hier deinen Exportcode ein:</div><textarea class="code" id="cd"></textarea></div><div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn" id="bx">Zurück</button><button class="btn big" id="bg">Laden</button></div>`);
   w.style.width = "min(94vw,560px)"; w.querySelector("#bx").onclick = () => { sfx("click"); winClose(); };

@@ -5,10 +5,12 @@ function adminBuild() {
   const a = $("admin"); const B = (t, id) => `<button class="btn" data-a="${id}">${t}</button>`;
   a.innerHTML = `<div class="row"><h2 style="margin:0;font:400 28px var(--f-display);color:var(--accent)">Admin</h2><span style="flex:1"></span><button class="btn" data-a="close">Schließen</button></div>
   <h3>Allgemein</h3>${B("Unverwundbar " + (ADM.invul ? "AN" : "aus"), "invul")}${B("FPS " + (G.showFps ? "AN" : "aus"), "fps")}${B("Volle Heilung", "heal")}${B("Titelbild", "title")}${B("Übungsraum", "arena")}${B("Spielstand löschen", "wipe")}
-  <h3>Beute und Stufen</h3>${B("Stufe +5", "lv5")}${B("+1000 Taler", "gold")}${B("+10 Punkte", "vp")}${B("Zufallsbeute x5", "loot")}${B("Legendär", "leg")}${B("Einzigartig", "uni")}${B("Dungeon-Stufe + " + (SV.stufe || 0), "st+")}${B("Dungeon-Stufe -", "st-")}${B("Rucksack/Schmiede", "inv")}${B("Schmiede", "smith")}`;
+  <h3>Beute und Stufen</h3>${B("Stufe +5", "lv5")}${B("+1000 Taler", "gold")}${B("+10 Punkte", "vp")}${B("Zufallsbeute x5", "loot")}${B("Legendär", "leg")}${B("Einzigartig", "uni")}${B("Dungeon-Stufe + " + (SV.stufe || 0), "st+")}${B("Dungeon-Stufe -", "st-")}${B("Rucksack/Schmiede", "inv")}${B("Schmiede", "smith")}
+  <h3>Dungeons</h3>${DUNGEONS.map(d => B(d.id + ": " + d.n, "dg" + d.id)).join("")}${B("Letzten Lauf fortsetzen", "dgres")}`;
   a.onclick = e => { const b = e.target.closest("[data-a]"); if (!b) return; adminAct(b.dataset.a); };
 }
 function adminAct(id) {
+  if (id.startsWith("dg") && id !== "dgres") { adminToggle(); startDungeon(+id.slice(2), SV.stufe || 0, false); return; }
   switch (id) {
     case "close": adminToggle(); return;
     case "invul": ADM.invul = !ADM.invul; toast("Unverwundbar: " + (ADM.invul ? "an" : "aus")); break;
@@ -22,6 +24,7 @@ function adminAct(id) {
     case "leg": SV.inv.push(genItem(Math.max(1, SV.stufe || 1) + 2, 3)); break; case "uni": SV.inv.push(genItem(Math.max(1, SV.stufe || 1) + 2, 4)); break;
     case "st+": SV.stufe = (SV.stufe || 0) + 1; adminBuild(); break; case "st-": SV.stufe = Math.max(0, (SV.stufe || 0) - 1); adminBuild(); break;
     case "inv": adminToggle(); openInventory("bag"); return; case "smith": adminToggle(); openInventory("smith"); return;
+    case "dgres": adminToggle(); if (SV.run) startDungeon(SV.run.did, SV.run.tier, true); else toast("Kein Lauf gespeichert"); return;
     case "wipe": if (confirm("Wirklich alles löschen?")) { localStorage.removeItem(SV_KEY); SV = defaultSave(); toast("Gelöscht"); } break;
   }
   adminBuild();
