@@ -171,7 +171,7 @@ SCENES.arena = {
     this.t += dt; scrapsUpdate(dt); CAM.z = approach(CAM.z, 1, dt * .4); combatUpdate(dt);
     const tgt = PL.dead ? null : nearestEnemy(PL.x, PL.y, 140); camFollow(PL.x + (tgt ? (tgt.x - PL.x) * .15 : 0), PL.y + (tgt ? (tgt.y - PL.y) * .15 : 0), { w: this.room.w * TS, h: this.room.h * TS }, dt);
     if (!BT.en.some(e => !e.dead)) { this.wt -= dt; if (this.wt <= 0) { this.wt = 2.2; this.spawnWave(); } }
-    if (wasPressed("menu")) { saveGame(); transition(() => setScene("title")); }
+    if (wasPressed("menu")) pauseMenu();
   },
   draw(c) {
     c.fillStyle = THEMES[0].bgCol; c.fillRect(0, 0, V.W, V.H); scrapsDraw(c, CAM.x, CAM.y, .5, 0, .6);
@@ -180,3 +180,9 @@ SCENES.arena = {
     hudDraw(c); drawControls(c, { btns: combatBtns() });
   },
 };
+
+function pauseMenu() {
+  sfx("page"); const w = winOpen(`<h2><span>Pause</span><span class="sp"></span></h2><div class="body" style="display:flex;flex-direction:column;gap:8px;align-items:stretch"><button class="btn big" id="r">Weiter</button><button class="btn big" id="b">${gi("bag", INK)} Rucksack</button><button class="btn" id="m">Zum Titel</button></div>`); w.style.width = "min(70vw,320px)";
+  w.querySelector("#r").onclick = () => { sfx("click"); winClose(); }; w.querySelector("#b").onclick = () => { sfx("click"); openInventory("bag", () => { }); };
+  w.querySelector("#m").onclick = () => { sfx("click"); winClose(); saveGame(); transition(() => setScene("title")); };
+}
