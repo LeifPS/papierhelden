@@ -66,31 +66,6 @@ function codeDialog() {
   w.style.width = "min(94vw,560px)"; w.querySelector("#bx").onclick = () => { sfx("click"); winClose(); };
   w.querySelector("#bg").onclick = async () => { const ok = await importCode(w.querySelector("#cd").value); if (ok) { winClose(); sfx("buy"); toast("Spielstand geladen"); titleMenu(); } else { sfx("deny"); toast("Der Code passt nicht."); } };
 }
-/* ----- Übungsraum (Test) ----- */
-SCENES.arena = {
-  enter() {
-    this.room = buildRoom("arena1", { theme: 0, seed: 12345, doors: {} }); plReset(11 * TS, 6.5 * TS); CAM.x = PL.x; CAM.y = PL.y; CAM.z = 1.5; IN.show = true; music("bereich1"); scrapsInit(20, V.W, V.H);
-    this.t = 0; cineBars(true); setTimeout(() => cineBars(false), 1600);
-  },
-  update(dt) {
-    this.t += dt; scrapsUpdate(dt); CAM.z = approach(CAM.z, 1, dt * .5);
-    plUpdate(dt, this.room, { attack: d => this.attack(d) }); camFollow(PL.x, PL.y, { w: this.room.w * TS, h: this.room.h * TS }, dt); fxUpdate(dt);
-    if (wasPressed("menu")) { transition(() => setScene("title")); }
-  },
-  attack() {
-    if (wasPressed("atk") && PL.atkCd <= 0 && !PL.swing) {
-      const side = PL.combo % 2 ? -1 : 1, final = PL.combo % 3 === 2; PL.combo = (PL.combo + 1) % 3;
-      PL.swing = { t: 0, dur: .16, a: PL.dir, arc: final ? 2.6 : 2.0, dirSign: side, kind: "slash", base: (SV.eq.melee || {}).base || "feder", range: 46, col: "#ffffff" }; PL.atkCd = .26; sfx(final ? "heavy" : "swing");
-      fxBurst(PL.x + Math.cos(PL.dir) * 30, PL.y + Math.sin(PL.dir) * 30, 4, "#fff", 40, .25, "dot", 2);
-    }
-  },
-  draw(c) {
-    c.fillStyle = THEMES[0].bgCol; c.fillRect(0, 0, V.W, V.H); scrapsDraw(c, CAM.x, CAM.y, .5, 0, .6);
-    camBegin(c); drawRoomBG(c, this.room); drawTorchSprites(c, this.room, G.t); drawPlayer(c); fxDraw(c); drawTorches(c, this.room, G.t); camEnd(c);
-    const s = w2s(PL.x, PL.y); drawLighting(c, .55, [{ x: s.x, y: s.y, r: 230 }].concat(this.room.torches.map(t => { const q = w2s(t.x, t.y + 14); return { x: q.x, y: q.y, r: 120, k: .8 }; }))); scrapsDraw(c, CAM.x, CAM.y, .35, 1, 3); drawVignette(c, .8);
-    drawControls(c, { btns: { atk: { glyph: "sword", col: P1 }, dodge: { glyph: "roll", col: P2, cd: PL.rollCd, cdMax: ST.rollCd }, rng: { glyph: "bow", col: P2, dim: 1 }, a0: { glyph: "star", col: P2, dim: 1 }, a1: { glyph: "star", col: P2, dim: 1 }, a2: { glyph: "star", col: P2, dim: 1 } } });
-  },
-};
 /* ----- Start ----- */
 function exportCode() { return "PH0:" + btoa(unescape(encodeURIComponent(JSON.stringify(SV)))); }
 async function importCode(s) { try { s = (s || "").trim(); if (!s.startsWith("PH0:")) return false; const o = JSON.parse(decodeURIComponent(escape(atob(s.slice(4))))); if (!o || o.v !== 1) return false; SV = Object.assign(defaultSave(), o); saveGame(); return true; } catch (e) { return false; } }

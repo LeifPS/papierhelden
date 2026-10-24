@@ -1,5 +1,6 @@
 /* ===== Kern: Farben, Zufall, Hilfsfunktionen, Sprite-Cache ===== */
 const INK = "#1d2742", P1 = "#f6efd9", P2 = "#ebe0c0", ACC = "#2b7a86", WARM = "#c97d12", GOOD = "#3a8450", BAD = "#b8473a", PURP = "#7a4fb0", MUTED = "#5c6684";
+const pick = a => a[Math.floor(Math.random() * a.length)];
 const TAU = Math.PI * 2, PI = Math.PI;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
