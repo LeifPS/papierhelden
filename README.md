@@ -5,8 +5,8 @@ Ein handgezeichneter 2D-Action-Dungeon-Crawler für das Handy (Touch, Querformat
 ## Aufbau
 
 - `src/`: Quellcode (reines JavaScript, ein 2D-Canvas, keine Frameworks). `build.sh` setzt alle `src/*.js` und `src/h_head.html` zu einer einzigen `public/index.html` zusammen.
-- `worker/index.js`: Cloudflare Worker, liefert `public/` aus und reicht `/ws` an das Durable Object `Dorf` weiter (Mehrspieler-Anwesenheit nur im Hub, nur Positionen).
-- `wrangler.jsonc`: Static Assets plus Durable Object.
+- `worker/index.js`: Cloudflare Worker, liefert `public/` aus (kein Mehrspieler, alles läuft lokal).
+- `wrangler.jsonc`: Static Assets. Die Migration v2 entfernt das frühere Durable Object "Dorf".
 - `public/musik/`: hier liegen die MP3-Dateien (siehe unten). Fehlt eine Datei, spielt ein kleiner eingebauter Ersatz.
 
 ## Lokal ausprobieren
