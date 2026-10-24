@@ -123,7 +123,7 @@ function calcStats() {
   const armDmg = ((arm ? ab.dmg || 0 : 0) + [arm, ...arts].reduce((s2, it) => s2 + (it ? sumAff(it, "dmg") : 0), 0)) / 100;
   const wp = (it, defs) => { if (!it) return null; const d = defs[it.base], loc = k => sumAff(it, k) + enchVal(it, k); return {
     it, d, kind: d.kind, pr: d.pr, base: itemBase(it) * (1 + (sumAff(it, "dmg") + enchVal(it, "schaerfe")) / 100 + armDmg),
-    spd: (d.spd || d.rate) * (1 + (sumAff(it, "spd") + enchVal(it, "eile")) / 100), crit: .05 + (sumAff(it, "crit") + enchVal(it, "treffer")) / 100, critd: .5 + sumAff(it, "critd") / 100,
+    spd: (d.rate || d.spd) * (1 + (sumAff(it, "spd") + enchVal(it, "eile")) / 100), crit: .05 + (sumAff(it, "crit") + enchVal(it, "treffer")) / 100, critd: .5 + sumAff(it, "critd") / 100,
     life: (sumAff(it, "life") + enchVal(it, "vampir")) / 100, kb: (d.kb || 0) * (1 + enchVal(it, "wucht") / 100), burn: enchVal(it, "feuer") / 100, frost: enchVal(it, "frost") / 100, chain: enchVal(it, "blitz") / 100, boom: enchVal(it, "explosion") / 100,
     range: d.range, arc: d.arc, dm: d.dmg, spdv: d.spd, cnt: d.cnt || 1, spread: d.spread || 0, pierce: d.pierce || 0, hom: d.hom || 0, pspd: d.spd };
   };

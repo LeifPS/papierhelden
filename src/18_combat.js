@@ -89,7 +89,7 @@ function meleeHit(s) {
   if (any) { fxBurst(PL.x + Math.cos(s.a) * s.range * .8, PL.y + Math.sin(s.a) * s.range * .8, 3, "#fff", 80, .2, "spark", 2); }
 }
 function plAttack(dt) {
-  const m = ST.m, r = ST.r; PL.rCd = Math.max(0, (PL.rCd || 0) - dt);
+  const m = ST.m, r = ST.r; PL.rCd = Math.max(0, (PL.rCd || 0) - dt); ammoUpdate(dt);
   if (PL.swing && !PL.swing.done && PL.swing.t >= PL.swing.dur * .35) { PL.swing.done = true; meleeHit(PL.swing); if (PL.swing.next) { const n = PL.swing.next; PL.swingQ = { at: PL.t + .09, s: n }; } }
   if (PL.swingQ && PL.t >= PL.swingQ.at) { const q = PL.swingQ.s; PL.swingQ = null; PL.swing = q; sfx("swing", 20); }
   if (PL.st === "roll" || PL.dead) return;
@@ -100,13 +100,16 @@ function plAttack(dt) {
     PL.swing = mk(side, final && kind === "slash" ? 1.5 : 1); if (kind === "dual") PL.swing.next = Object.assign(mk(-side, 1), { a: PL.dir });
     sfx(kind === "slam" ? "heavy" : final ? "heavy" : "swing"); if (kind === "slam") { PL.swing.mul = 1; camShake(3); } moveEnt(BT.room, PL, Math.cos(PL.dir) * 7, Math.sin(PL.dir) * 7);
   }
-  if (r && IN.down.rng && PL.rCd <= 0 && !(PL.swing)) {
-    PL.rCd = 1 / r.spd; const tgt = nearestEnemy(PL.x, PL.y, 320, PL.moving ? .9 : 3.2, PL.dir), a0 = tgt ? ang(PL.x, PL.y, tgt.x, tgt.y) : PL.dir; PL.dir = a0;
+  if (r && IN.down.rng && PL.rCd <= 0 && !(PL.swing) && PL.ammo < 1) { if (!PL.dryT || PL.t - PL.dryT > .4) { PL.dryT = PL.t; sfx("deny"); fxText(PL.x, PL.y - 26, "Leer", "#cfd6e0", 14); } }
+  if (r && IN.down.rng && PL.rCd <= 0 && !(PL.swing) && PL.ammo >= 1) {
+    PL.rCd = 1 / r.spd; PL.ammo -= 1; PL.ammoWait = .55; const tgt = nearestEnemy(PL.x, PL.y, 320, PL.moving ? .9 : 3.2, PL.dir), a0 = tgt ? ang(PL.x, PL.y, tgt.x, tgt.y) : PL.dir; PL.dir = a0;
     for (let i = 0; i < r.cnt; i++) { const an = a0 + (r.cnt > 1 ? (i / (r.cnt - 1) - .5) * r.spread * 2 : 0) + (Math.random() - .5) * r.spread, d = plDmg(r, 1); addProj({ x: PL.x + Math.cos(an) * 14, y: PL.y - 3 + Math.sin(an) * 14, vx: Math.cos(an) * r.pspd, vy: Math.sin(an) * r.pspd, dmg: d.v, crit: d.crit, own: "p", kind: r.pr, pierce: r.pierce, hom: r.hom ? 1 : 0, w: r, life: .9, r: 5 }); }
     sfx("shoot", 30); PL.recoil = .08;
   }
   ST.arts && ST.arts.forEach((a, i) => { if (a) { BT.cdArt[i] = Math.max(0, BT.cdArt[i] - dt); if (wasPressed("a" + i) && BT.cdArt[i] <= 0 && !PL.swing) { useArtifact(a, i); } } });
 }
+function ammoMax() { return ST.r ? Math.round(3 + ST.r.spd * 1.5) : 0; }
+function ammoUpdate(dt) { const mx = ammoMax(); if (PL.ammo === undefined || PL.ammo > mx) PL.ammo = mx; PL.ammoWait = Math.max(0, (PL.ammoWait || 0) - dt); if (ST.r && PL.ammo < mx && PL.ammoWait <= 0) PL.ammo = Math.min(mx, PL.ammo + ST.r.spd * .6 * dt); }
 function useArtifact(a, i) {
   const id = a.it.base, pot = a.pot, dir = PL.dir, tg = nearestEnemy(PL.x, PL.y, 300), aim = tg ? ang(PL.x, PL.y, tg.x, tg.y) : dir; BT.cdArt[i] = a.cd; sfx("pick"); let ok = true;
   const aoe = (x, y, R, dm, kb) => { for (const e of BT.en) if (!e.dead && e.st !== "spawn" && dist(x, y, e.x, e.y) < R + e.r) hurtEnemy(e, dm, { a: ang(x, y, e.x, e.y), kb: kb || 80, noChain: 1 }); for (const p of BT.props) if (p.hurt && dist(x, y, p.x, p.y) < R) propHit(p, dm); };
@@ -155,7 +158,7 @@ function hudDraw(c) {
 }
 function artBtns() { const o = {}; [0, 1, 2].forEach(i => { const a = ST.arts && ST.arts[i]; o["a" + i] = a ? { glyph: ARTGL[a.it.base] || "star", col: P2, cd: BT.cdArt[i], cdMax: a.cd } : { glyph: "star", col: P2, dim: 1 }; }); return o; }
 const ARTGL = { tinte: "drop", radierer: "ring", lesezeichen: "arrowR", klammer: "bolt", salve: "page", tintenschild: "shield", federkiel: "feather", lupe: "eye", falle: "skull", riss: "pen" };
-function combatBtns() { return Object.assign({ atk: { glyph: "sword", col: P1 }, dodge: { glyph: "roll", col: P2, cd: PL.rollCd, cdMax: ST.rollCd }, rng: ST.r ? { glyph: "bow", col: P2 } : { glyph: "bow", col: P2, dim: 1 } }, artBtns()); }
+function combatBtns() { return Object.assign({ atk: { glyph: "sword", col: P1 }, dodge: { glyph: "roll", col: P2, cd: PL.rollCd, cdMax: ST.rollCd }, rng: ST.r ? { glyph: "bow", col: P2, cd: ammoMax() - Math.floor(PL.ammo || 0), cdMax: ammoMax(), badge: String(Math.floor(PL.ammo || 0)) } : { glyph: "bow", col: P2, dim: 1 } }, artBtns()); }
 /* ----- Test-Arena mit Wellen (wird später durch Dungeons ersetzt) ----- */
 SCENES.arena = {
   enter() {
