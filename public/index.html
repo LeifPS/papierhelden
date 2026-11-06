@@ -1,4 +1,6 @@
-<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<!doctype html><html lang="de"><meta charset="utf-8">
+<script src="lgh-vorlade.js"></script><!--lgh-->
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Papierhelden</title>
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Papierhelden"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="theme-color" content="#1d2742">
@@ -2190,3 +2192,5 @@ async function endingFlow() {
   cutPlay(c === 0 ? "endA" : "endB", () => creditsPlay(() => { SV.flags.ended = 1; saveGame(); transition(() => { DG.def = null; setScene("hub", { fromDungeon: true }); }); }));
 }
 </script>
+
+<!--lgh-start--><script>window.LGH_SPIEL='papierhelden';window.LGH_POS='bc';window.LGH_OHNE_MENUE=true;</script><script src="lgh-modul.js"></script><!--lgh-ende-->
