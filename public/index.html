@@ -706,7 +706,7 @@ function plUpdate(dt, room, ctx) {
   if (PL.swing) { PL.swing.t += dt; if (PL.swing.t >= PL.swing.dur + .05) PL.swing = null; }
 }
 function drawPlayer(c) {
-  const sv = window.SV || {}; const paper = PAPERS[sv.paper || "creme"] || PAPERS.creme, scarf = (window.armorColor && armorColor()) || "#2b7a86";
+  const sv = typeof SV !== "undefined" ? SV : {}; const paper = PAPERS[sv.paper || "creme"] || PAPERS.creme, scarf = (window.armorColor && armorColor()) || "#2b7a86";
   const blink = PL.flash > 0 && Math.floor(PL.flash * 20) % 2 === 0;
   const hit = PL.swing;
   // Waffe hinter oder vor dem Helden je nach Blickrichtung
